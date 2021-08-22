@@ -37,6 +37,14 @@ def _get_db_num():
 
 #-----------------------------------------------------------------------------
 
+# Save all the raw data we load from the SQLite database
+_sql_data = dict()
+
+def get_raw_sql_data():
+    return _sql_data
+
+#-----------------------------------------------------------------------------
+
 # These values are not in the database -- they are hard-coded (!)
 def _find_member_types():
     member_types = {
@@ -951,6 +959,7 @@ def load_families_and_members(filename=None, pds=None,
     languages   = PDS.read_table(pds, 'LangType_DB', 'LanguageRec',
                                  columns=['Description'],
                                  log=log)
+
     mem_phones  = PDS.read_table(pds, 'MemPhone_DB', 'PhoneRec',
                                  columns=['Rec', 'Number', 'PhoneTypeRec', 'Unlisted'],
                                  log=log)
@@ -1054,6 +1063,15 @@ def load_families_and_members(filename=None, pds=None,
 
     if parishioners_only:
         _delete_non_parishioners(families, members)
+
+    # Save the raw data that we might want to access later (outside
+    # the context of just Members and Families).
+    global _sql_data
+    _sql_data = {
+        # So far, we only care about ministries, but this dictionary
+        # could easily be expanded to include other things.
+        'ministries' : ministries,
+    }
 
     _link_family_emails(families, emails)
     _link_family_city_states(families, city_states)
