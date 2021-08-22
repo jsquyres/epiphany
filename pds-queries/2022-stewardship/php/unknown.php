@@ -5,6 +5,6 @@
 <body>
 <div align="center"><img src="stewardship-logo.png"></div>
 
-<p align="center">The web munchkins are still processing your data.  Please check back in a few minutes!</p>
+<p style="font-size:18px;" align="center">The web munchkins are still processing your data.  Please check back in a few minutes!</p>
 </body>
 </html>

@@ -5,10 +5,14 @@
 <body>
 <div align="center"><img src="stewardship-logo.png"></div>
 
-<form action="submit.php">
-<p align="center">Enter your 6-digit Epiphany stewardship code here:</p>
-<input type="text" name="key" id="key" maxlength="6">
-<input type="submit">
+<form action="." method="get">
+<p align="center" style="font-size:18px;">Enter your 6-digit Epiphany stewardship code here:</p>
+<div align="center" >
+<input type="text" name="key" style="font-size:36px;" size="6" maxlength="6">
+     <br />
+     <br />
+<input style="font-size:18px;" type="submit">
+</div>
 </form>
 </body>
 </html>
