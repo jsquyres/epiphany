@@ -43,11 +43,11 @@ guser_cred_file = 'user-credentials.json'
 
 # Copied from the Google Spreadsheet where Jotform is writing its
 # results
-jotform_gsheet_gfile_id = '1NWSW8SRXGBLJXtjbGrkPE7kCPzxosVYo9z-VsvkOgU4'
+jotform_gsheet_gfile_id = '1BVNNFBSDnRJYKRYKbzDMR9U05uy7D09S9JGfJq5ip68'
 
 # Team Drive folder where to upload the CSV/spreadsheet comparison
 # output files
-upload_team_drive_folder_id = '1fo8in3EBgidsAxtvm6p88b3uz8mjh7_2'
+upload_team_drive_folder_id = '1uDrFHJCXo0_GRFd9biY5M544aIVZI3dP'
 
 gsheet_editors = f'stewardship{stewardship_year}-workers@epiphanycatholicchurch.org'
 
@@ -55,7 +55,7 @@ gsheet_editors = f'stewardship{stewardship_year}-workers@epiphanycatholicchurch.
 
 # For members who change their ministry data, start / end dates to use
 
-ministry_start_date = '11/01/2020'
+ministry_start_date = '11/01/2021'
 ministry_end_date   = ministry_start_date
 
 #--------------------------------------------------------------------------
@@ -73,7 +73,7 @@ PLEDGE_SQL_TYPE   = 2
 COL_AM_INVOLVED  = 0
 COL_NOT_INVOLVED = 2
 
-MAX_PDS_FAMILY_MEMBER_NUM = 6
+MAX_PDS_FAMILY_MEMBER_NUM = 7
 
 #############################################################################
 
@@ -126,6 +126,10 @@ grid.add_row('107-Social Resp Steering Comm',
 grid.add_row('108-Formation Team')
 grid.add_row('109-Prayer Ministry Leadership')
 grid.add_row('110-Ten Percent Committee')
+grid.add_row('111-Hispanic Ministry Team')
+grid.add_row('113-Communications Adv. Comm.'
+             # JMS ???
+             '113-Communications Advance Committee')
 
 _all_ministry_grids.append(grid)
 
@@ -169,27 +173,35 @@ _all_ministry_grids.append(grid)
 
 grid = ministry_2d_grid('Liturgical Celebratory', 'lc')
 
-grid.add_row(['309A-Acolyte Ministry 5:30P',
-              '309B-Acolyte Ministry  9:00A',
-              '309C-Acolyte Ministry 11:30A'],
-             '309-Acolytes')
+grid.add_row('309A-Acolyte Ministry 5:30P')
+grid.add_row('309B-Acolyte Ministry  9:00A')
+grid.add_row('309C-Acolyte Ministry 11:30A')
+#             '309-Acolytes')
 grid.add_row('310-Adult Choir')
 grid.add_row('311-Bell Choir')
 grid.add_row('312-Children\'s Music Ministry')
-grid.add_row('313-Communion Ministers')
+grid.add_row('313A-Communion: Weekday',
+             '313A-Communion Ministers: Weekday')
+grid.add_row('313B-Communion: Homebound',
+             '313B-Communion Ministers: Weekday')
+grid.add_row('313C-Communion Ministers: 5:30')
+grid.add_row('313D-Communion Ministers: 9:00')
+grid.add_row('313E-Communion Ministers:11:30')
+
 grid.add_row('314-Communion Min. Coordinator',
                 '314-Communion Minister Coordinator')
 grid.add_row('315-Funeral Mass Ministry')
-grid.add_row(['316A-Greeters 5:30P',
-              '316B-Greeters 9:00A',
-              '316C-Greeters 11:30A'],
-             '316-Greeters')
+grid.add_row('316A-Greeters 5:30P')
+grid.add_row('316B-Greeters 9:00A')
+grid.add_row('316C-Greeters 11:30A')
+#             '316-Greeters')
 grid.add_row('317-Instrumentalists & Cantors')
-grid.add_row(['318A-Lector Ministry  5:30P',
-              '318B-Lector  Ministry 9:00A',
-              '318C-Lector Ministry 11:30A',
-              '318-Lectors  MASTER LIST'],
-             '318-Lectors')
+grid.add_row('318A-Lector Ministry  5:30P')
+grid.add_row('318B-Lector  Ministry 9:00A')
+grid.add_row('318C-Lector Ministry 11:30A')
+grid.add_row('318D-Lector Ministry  Spanish')
+#              '318-Lectors  MASTER LIST'],
+#             '318-Lectors')
 grid.add_row('319-Liturgical Dance Ministry')
 grid.add_row('321-Prayer Chain Ministry')
 
@@ -202,8 +214,12 @@ grid = ministry_2d_grid('Stewardship & Evangelization', 'se')
 grid.add_row('401-Epiphany Companions')
 grid.add_row('402-New Members Coffee')
 grid.add_row('404-Welcome Desk')
+# JMS REMOVE?
+#grid.add_row('405-Parish Mission Plan Team')
 grid.add_row('406-Evangelization Team')
 grid.add_row('407-Stewardship Team')
+# JMS REMOVE?
+#grid.add_row('408-Engagement Team')
 
 _all_ministry_grids.append(grid)
 
@@ -212,7 +228,8 @@ _all_ministry_grids.append(grid)
 grid = ministry_2d_grid('Communication', 'cc')
 
 grid.add_row('450-Communications Committee')
-grid.add_row('451-Livestream Team Ministry', new=True)
+grid.add_row('451-Livestream Team Ministry')
+grid.add_row('452-Media Communications')
 
 _all_ministry_grids.append(grid)
 
@@ -224,13 +241,12 @@ grid.add_row('500-BereavementReceptionSupprt',
                 '500-Bereavement Reception & Support')
 grid.add_row('501-Care of Sick: Communion',
                 '501-Care of Sick: Communion to the Sick and Homebound')
-grid.add_row('502-Care of Sick: Meals',
-                '502-Care of Sick: Meals to the Sick and Homebound')
-grid.add_row('503-Childcare Ministry: Adult')
 grid.add_row('504-DivorceCare')
 grid.add_row('505-Healing Blanket Ministry')
-grid.add_row('507-Grief Support Team')
 grid.add_row('508-Messages of Hope Ministry')
+# JMS REMOVE?
+#grid.add_row('513-Care of Sick: Transport')
+#grid.add_row('515-Childcare Ministry: Teen')
 
 _all_ministry_grids.append(grid)
 
@@ -242,17 +258,16 @@ grid.add_row('600-Men of Epiphany')
 grid.add_row('601-Sages (for 50 yrs. +)',
                 '601-Sages')
 grid.add_row('602-Singles Explore Life (SEL)')
-grid.add_row('603-Soup Supper Ministry')
+# JMS REMOVE?
+#grid.add_row('603-Soup Supper Ministry')
 grid.add_row('604-Wednesdays for Women')
 grid.add_row('605-Sunday Morning Coffee')
-grid.add_row('606-Kitchen Volunteer Ministry')
-grid.add_row('607-Easter Egg Plan Team 2021')
-grid.add_row('609-Octoberfest Plan Team 2021',
-                '609-Octoberfest Planning Team 2021', new=True)
-grid.add_row('610-FeastOfEpiphanyPlanTeam\'22',
-                '610-Feast Of Epiphany Planning Team 2022')
-grid.add_row('612-JubileePictorialDirectory',
-                '612-Jubilee Pictorial Directory', new=True)
+grid.add_row('609-Octoberfest Plan Team 2022')
+grid.add_row('610-FeastOfEpiphanyPlanTeam\'23',
+                '610-Feast Of Epiphany Planning Team 2023')
+# JMS REMOVE?
+#grid.add_row('611-EpiphanyOuteachFellowship',
+#                '611-Epiphany Outreach Fellowship')
 
 _all_ministry_grids.append(grid)
 
@@ -271,7 +286,8 @@ grid.add_row('707-St. Vincent DePaul')
 grid.add_row('709-Twinning Committee:Chiapas',
                 '709-Twinning Committee: Chiapas')
 grid.add_row('710-Environmental Concerns')
-grid.add_row('711-Hispanic Ministry Team')
+grid.add_row('711-Dignity of Life Ministry')
+grid.add_row('712-Legislative Network')
 
 _all_ministry_grids.append(grid)
 
@@ -281,25 +297,14 @@ grid = ministry_2d_grid('Formational', 'ff')
 
 grid.add_row('800-ChildrenFormationCatechist',
                 '800-Children\'s Formation Catechists (PreK-6th)')
-grid.add_row('801-Confirmation Adult Mentor')
 grid.add_row('802-GathTheChildren Catechist',
                 '802-Gather the Children Catechists')
-grid.add_row('803-Youth Ministry AdultMentor',
-                '803-Youth Ministry Adult Mentor')
 grid.add_row('805-Monday Adult Bible Study')
-grid.add_row('806-Scripture Sharing Group')
 grid.add_row('807-RCIA Team')
-grid.add_row('808-Young Adult Ministry')
-grid.add_row('809-Sunday Adult Form. Spanish',
-                '809-Sunday Adult Formation in Spanish')
+grid.add_row('809-Sunday Adult Form. Spanish')
 grid.add_row('811-Family&Children\'s WorkGrp',
-                '811-Family and Children\'s Working Group', new=True)
-grid.add_row('812-Adult Form. Working Group',
-                '812-Adult Formation Working Group')
-grid.add_row('813-Visual Faith Group', new=True)
-grid.add_row('815-Baptismal Prep Mentors', new=True)
-grid.add_row('816-Marriage Prep Mentors', new=True)
-grid.add_row('817-Peer Mentors', new=True)
+                '811-Family and Children\'s Working Group')
+grid.add_row('812-Adult Form. Working Group')
 
 _all_ministry_grids.append(grid)
 
@@ -333,7 +338,7 @@ class jotform_class:
 
 last_updated = datetime.datetime.now().strftime('%A %B %d, %Y at %I:%M%p')
 
-jotform = jotform_class('https://form.jotform.com/202346350400137',
+jotform = jotform_class('https://form.jotform.com/212135190287149',
                     _all_ministry_grids)
 
 # These Jotform fields are for the overall Family
@@ -360,10 +365,10 @@ jotform.add_family_pre_fill_data('Family contributed so far in stewardship_year-
 # These Jotform fields are specific to a Member
 jotform.add_member_pre_fill_data('mid',
                     lambda mem: mem['MemRecNum'],
-                    [ f'mid{i}' for i in range(1, 8) ])
+                    [ f'mid{i}' for i in range(1, MAX_PDS_FAMILY_MEMBER_NUM+1) ])
 jotform.add_member_pre_fill_data('name',
                     lambda mem: helpers.url_escape(mem['full_name']),
-                    [ f'name{i}' for i in range(1, 8) ])
+                    [ f'name{i}' for i in range(1, MAX_PDS_FAMILY_MEMBER_NUM+1) ])
 
 ###########################################################################
 
@@ -386,11 +391,6 @@ jotform_gsheet_columns['prelude'] = [
 #--------------------------------------------------------------------------
 
 max_number = MAX_PDS_FAMILY_MEMBER_NUM
-# In 2021, Jotform can only handle 6 Members' worth of data
-# But we actually have 7 Members' worth of fields on the Form
-# So we have to account for this 7th Member's data here, even
-# though it will always be blank
-max_number += 1
 
 jotform_gsheet_columns['members'] = list()
 for member_num in range(1, max_number+1):

@@ -16,7 +16,13 @@ For the 2022 Stewardship campaign, the following schedule was used:
 * Aug 21: Will have final list of ministries
 * Sep 11: First eStewardship email to parish
 * Sep 18-19: Ministry showcase
+* Sep 21: 1st reminder email
 * Sep 25-26: Gather physical stewardship cards
+* Sep 28: 2nd reminder email
+* Oct 5: 3rd reminder email
+* Oct 12: 4th reminder email
+* Oct 19: 5th reminder email
+* Oct 28: 6th/final reminder email
 * Oct 31: End of eStewardship
 
 There are a few main scripts in this directory:

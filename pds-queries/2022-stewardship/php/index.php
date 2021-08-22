@@ -17,6 +17,10 @@ $error_url = "error.php";
 
 $db_handle  = new SQLite3($filename);
 
+if (!array_key_exists('key', $_GET)) {
+    header("Location: code.php");
+    exit(0);
+}
 $cookie = $_GET['key'];
 // Escape the cookie!
 
@@ -82,24 +86,6 @@ if (strstr($url, 'streetAddress')) {
     $form = "Member";
     $path = "member-redirect";
 }
-print("<html>
-<body>
-<script async src=\"https://www.googletagmanager.com/gtag/js?id=UA-3138866-8\"></script>
-<script>
-window.dataLayer = window.dataLayer || [];
-function gtag(){dataLayer.push(arguments);}
-gtag('js', new Date());
-
-gtag('config', 'UA-3138866-8',
-{ 'page_title' : 'Redirect to Jotform: $form',
-  'page_path' : '/summer2018/$path'
-});
-
-setTimeout(doRedirect, 250);
-function doRedirect() {
-  window.location = \"$url\";
-}
-</script>
-</body>
-</html>
-");
+print("<html>\n<head>\n");
+include("google_analytics.inc");
+print("</head>\n</html>\n");
