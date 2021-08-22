@@ -60,12 +60,6 @@ ministry_end_date   = ministry_start_date
 
 #--------------------------------------------------------------------------
 
-# In the cookies SQL database, we store two types of redirects:
-# 1. Redirects for the ministry jotform
-# 2. Redirects for the pledge jotform
-MINISTRY_SQL_TYPE = 1
-PLEDGE_SQL_TYPE   = 2
-
 # In the 2D ministry grids in Jotform, we need to know the column numbers
 # (starting with 0) for two cases:
 # 1. For when the Member is involved in this ministry

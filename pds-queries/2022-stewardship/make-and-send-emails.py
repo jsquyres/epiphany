@@ -49,9 +49,6 @@ from constants import api_base_url
 
 from constants import jotform
 
-from constants import MINISTRY_SQL_TYPE
-from constants import PLEDGE_SQL_TYPE
-
 from constants import COL_AM_INVOLVED
 from constants import COL_NOT_INVOLVED
 
@@ -65,7 +62,7 @@ args = None
 ###########################################################################
 
 # Returns the redirect URL
-def insert_url_cookie(fid, type, url, cookies, log=None):
+def insert_url_cookie(fid, url, cookies, log=None):
 
     # See if there's a cookie for this FID already
     def _get_cookie():
@@ -117,11 +114,10 @@ def insert_url_cookie(fid, type, url, cookies, log=None):
     # Insert the URL in the cookies database
     url_escaped = url.replace("'", "''")
     query       = ("INSERT INTO cookies "
-                   "(cookie,type,fid,url,creation_timestamp) "
-                   "VALUES (:cookie, :type, :fid, :url, :ts);")
+                   "(cookie,fid,url,creation_timestamp) "
+                   "VALUES (:cookie, :fid, :url, :ts);")
     values      = {
         "cookie" : cookie,
-        "type"   : type,
         "fid"    : fid,
         "url"    : url_escaped,
         "ts"     : int(calendar.timegm(time.gmtime())),
@@ -374,8 +370,7 @@ def _send_family_emails(message_body, families, submissions,
 
             # Now that we have the entire ministry jotform URL,
             # make a bounce URL for it
-            bounce_url  = insert_url_cookie(fid, MINISTRY_SQL_TYPE,
-                                            jotform_url, cookies)
+            bounce_url  = insert_url_cookie(fid, jotform_url, cookies)
             family['stewardship']['bounce_url'] = bounce_url
 
             send_count = send_family_email(message_body, family,
@@ -499,7 +494,6 @@ def cookiedb_create(filename, log=None):
     query = ('CREATE TABLE cookies ('
              'cookie text not null,'
              'fid not null,'
-             'type integer not null,'
              'url text not null,'
              'creation_timestamp integer not null'
              ')')
