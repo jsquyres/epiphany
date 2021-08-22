@@ -28,7 +28,7 @@ $db_handle  = new SQLite3($filename);
 # Get the URL from the most recent row in the database with the
 # correct cookie (remember: the cookie will be identical for all rows
 # with the same FID).
-$query = "SELECT url FROM COOKIES WHERE cookie=:cookie ORDER BY creation_timestamp LIMIT 1";
+$query = "SELECT url FROM COOKIES WHERE cookie=:cookie ORDER BY creation_timestamp DESC LIMIT 1";
 $stmt = $db_handle->prepare($query);
 $stmt->bindParam(':cookie', $cookie);
 $result = $stmt->execute();

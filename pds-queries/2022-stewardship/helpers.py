@@ -15,6 +15,7 @@ from datetime import timedelta
 
 # "year" is of the form: f'{stewardship_year - 2000 - 1:02}'
 def calculate_family_values(family, year, log=None):
+    print(f"JMS Calculating family values: {family['Name']}, year: {year}")
     if 'funds' in family and year in family['funds']:
         funds = family['funds'][year]
     else:
@@ -28,13 +29,21 @@ def calculate_family_values(family, year, log=None):
     # 2. Total amount given in CY{year} so far
     # 3. Family names
     pledged = 0
-    for fund in funds.values():
+    for id, fund in funds.items():
+        # We only want fund 1: stewardship contributions
+        if id != '1':
+            continue
+
         fund_rate = fund['fund_rate']
         if fund_rate and fund_rate['FDTotal']:
             pledged += int(fund_rate['FDTotal'])
 
     contributed = 0
-    for fund in funds.values():
+    for id, fund in funds.items():
+        # We only want fund 1: stewardship contributions
+        if id != '1':
+            continue
+
         for item in fund['history']:
             # Not quite sure how this happens, but sometimes the value is None.
             val = item['item']['FEAmt']
@@ -44,8 +53,9 @@ def calculate_family_values(family, year, log=None):
     family['calculated'] = {
         "pledged"        : pledged,
         "contributed"    : contributed,
-        "household_name" : household_name(family),
+        "household_name" : family['hoh_and_spouse_salutation'],
     }
+    print(f"JMS: calculated for family: {family['calculated']}")
 
 #--------------------------------------------------------------------------
 
@@ -83,79 +93,6 @@ def jotform_date_to_datetime(d):
             submit_date += delta
 
     return submit_date
-
-#--------------------------------------------------------------------------
-
-def member_is_hoh_or_spouse(m):
-    if 'Head' in m['type'] or 'Spouse' in m['type']:
-        return True
-    else:
-        return False
-
-#--------------------------------------------------------------------------
-
-def household_name(family):
-    # The format is:
-    # HoHLast,HohFirst[(SPOUSE)],HohTitle,HohSuffix
-    #
-    # SPOUSE will be:
-    # (SpFirst) or
-    # (SpLast,SpFirst[,SpTitle][,SpSuffix])
-    hoh_name     = family['Name']
-    hoh_names    = dict()
-    spouse_name  = None
-    spouse_names = dict()
-
-    result = re.search('^(.+)\((.+)\)(.*)$', family['Name'])
-    if result:
-        hoh_name = result.group(1)
-        if result.group(3):
-            hoh_name += result.group(3)
-        spouse_name = result.group(2)
-
-    # Parse out the Head of Household name
-    parts = hoh_name.split(',')
-    hoh_names['last'] = parts[0]
-    if len(parts) > 1:
-        hoh_names['first'] = parts[1]
-    if len(parts) > 2:
-        hoh_names['prefix'] = parts[2]
-    if len(parts) > 3:
-        hoh_names['suffix'] = parts[3]
-
-    # Parse out the Spouse name
-    if spouse_name:
-        parts = spouse_name.split(',')
-        if len(parts) == 1:
-            spouse_names['last']  = hoh_names['last']
-            spouse_names['first'] = parts[0]
-        elif len(parts) == 2:
-            spouse_names['last']  = parts[0]
-            spouse_names['first'] = parts[1]
-        if len(parts) > 2:
-            spouse_names['prefix'] = parts[2]
-        if len(parts) > 3:
-            spouse_names['suffix'] = parts[3]
-    else:
-        spouse_names = dict()
-
-    # Make the final string name to be returned
-    name = hoh_names['first']
-    if 'first' in spouse_names:
-        if hoh_names['last'] == spouse_names['last']:
-            name += (' and {sf} {last}'
-                    .format(sf=spouse_names['first'],
-                            last=hoh_names['last']))
-        else:
-            name += (' {hlast} and {sfirst} {slast}'
-                    .format(hlast=hoh_names['last'],
-                            sfirst=spouse_names['first'],
-                            slast=spouse_names['last']))
-    else:
-        name += ' ' + hoh_names['last']
-
-    return name
-
 
 #--------------------------------------------------------------------------
 

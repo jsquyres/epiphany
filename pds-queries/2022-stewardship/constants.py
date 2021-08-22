@@ -4,7 +4,7 @@ import helpers
 
 # Overall title
 
-stewardship_year = 2021
+stewardship_year = 2022
 
 title = f'Stewardship {stewardship_year}'
 
@@ -347,7 +347,7 @@ jotform.add_family_pre_fill_data('Emails for Jotform to send response to',
                     'email')
 
 jotform.add_family_pre_fill_data('Family name',
-                    lambda fam: fam['calculated']['household_name'] if 'calculated' in fam else fam['MailingName'],
+                    lambda fam: fam['hoh_and_spouse_salutation'],
                     'household')
 jotform.add_family_pre_fill_data('Family annual pledge for stewardship_year-1',
                     lambda fam: "%24{val}".format(val=fam['calculated']['pledged']) if 'calculated' in fam else "%240",

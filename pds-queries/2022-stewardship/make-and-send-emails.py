@@ -315,7 +315,7 @@ def _send_family_emails(message_body, families, submissions,
             for member in family['members']:
                 members_by_mid[member['MemRecNum']] = member
                 log.info(f"    Member: {member['Name']}")
-                if helpers.member_is_hoh_or_spouse(member):
+                if PDSChurch.is_member_hoh_or_spouse(member):
                     em = PDSChurch.find_any_email(member)
                     to_addresses.extend(em)
 
