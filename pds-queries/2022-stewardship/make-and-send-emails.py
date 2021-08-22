@@ -65,23 +65,75 @@ args = None
 ###########################################################################
 
 # Returns the redirect URL
-def insert_url_cookie(uid, type, url, cookies, log=None):
+def insert_url_cookie(fid, type, url, cookies, log=None):
+
+    # See if there's a cookie for this FID already
+    def _get_cookie():
+        # Get just the latest entry
+        query = 'SELECT cookie FROM cookies WHERE fid=:fid ORDER BY creation_timestamp DESC LIMIT 1'
+        values = {
+            'fid' : fid,
+        }
+        results = cookies.execute(query, values)
+        cookie = None
+        row = results.fetchone()
+        if row:
+            cookie = row[0]
+
+        return cookie
+
+    # Make a cookie that is unique
+    def _generate_cookie():
+        while True:
+            raw_uuid = uuid.uuid4()
+            str_uuid = str(raw_uuid)
+            cookie = str_uuid[0:6].upper()
+            query = 'SELECT cookie FROM cookies WHERE cookie=:cookie ORDER BY creation_timestamp DESC LIMIT 1'
+            values = {
+                'cookie' : cookie,
+            }
+            results = cookies.execute(query, values)
+            row = results.fetchone()
+            if not row:
+                # Return when we found a cookie that is not yet in the
+                # database
+                return cookie
+
+    #------------------------------------------------------------
+
+    # We're basically basing the lookup on the FID.  But the FIDs used
+    # by PDS have a fairly dense distribution -- given one FID, it's
+    # pretty easy to find other valid FIDs.  So instead, we generate a
+    # random 6-digit hex number to use instead of the FID.  Using only
+    # 6 digits means that this code can be conveyed verbally, on a
+    # printed sheet (e.g., a snail mail), etc.
+    cookie = _get_cookie()
+    if cookie is not None:
+        log.debug(f"Using existing cookie: {cookie}")
+    else:
+        cookie = _generate_cookie()
+        log.debug(f"Using new cookie: {cookie}")
+
     # Insert the URL in the cookies database
-    cookie      = uuid.uuid4()
     url_escaped = url.replace("'", "''")
     query       = ("INSERT INTO cookies "
-             "(cookie,type,uid,url,creation_timestamp) "
-             "VALUES ('{cookie}','{type}','{uid}','{url}',{ts});"
-             .format(cookie=cookie, type=type, uid=uid, url=url_escaped,
-                     ts=int(calendar.timegm(time.gmtime()))))
-    cookies.execute(query)
+                   "(cookie,type,fid,url,creation_timestamp) "
+                   "VALUES (:cookie, :type, :fid, :url, :ts);")
+    values      = {
+        "cookie" : cookie,
+        "type"   : type,
+        "fid"    : fid,
+        "url"    : url_escaped,
+        "ts"     : int(calendar.timegm(time.gmtime())),
+    }
+    cookies.execute(query, values)
 
     # Write the cookie to the DB immediately (in case someone is
     # reading/copying the sqlite3 database behind the scenes).
     cookies.connection.commit()
 
     if log:
-        log.debug(f"SQL query: {query}")
+        log.debug(f"SQL query: {query} / {values}")
 
     return f'{api_base_url}{cookie}'
 
@@ -184,9 +236,9 @@ def send_family_email(message_body, family, submissions,
     smtp_to = ",".join(data['to_addresses'])
 
     # JMS DEBUG
-    #was = smtp_to
-    #smtp_to = "Jeff Squyres <jsquyres@gmail.com>"
-    #log.info(f"Sending to (OVERRIDE): {smtp_to} (was {was})")
+    was = smtp_to
+    smtp_to = "Jeff Squyres <jsquyres@gmail.com>"
+    log.info(f"Sending to (OVERRIDE): {smtp_to} (was {was})")
     #---------------------------------------------------------------------
 
     if log:
@@ -445,8 +497,8 @@ def send_some_family_emails(args, families, submissions,
 def cookiedb_create(filename, log=None):
     cur = cookiedb_open(filename)
     query = ('CREATE TABLE cookies ('
-             'cookie text primary key not null,'
-             'uid not null,'
+             'cookie text not null,'
+             'fid not null,'
              'type integer not null,'
              'url text not null,'
              'creation_timestamp integer not null'
