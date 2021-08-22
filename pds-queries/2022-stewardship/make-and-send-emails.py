@@ -370,7 +370,7 @@ def _send_family_emails(message_body, families, submissions,
 
             # Now that we have the entire ministry jotform URL,
             # make a bounce URL for it
-            bounce_url  = insert_url_cookie(fid, jotform_url, cookies)
+            bounce_url  = insert_url_cookie(fid, jotform_url, cookies, log=log)
             family['stewardship']['bounce_url'] = bounce_url
 
             send_count = send_family_email(message_body, family,
