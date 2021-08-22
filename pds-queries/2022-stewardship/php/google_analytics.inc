@@ -10,10 +10,6 @@ print("<script async src=\"https://www.googletagmanager.com/gtag/js?id=$google_a
   gtag('js', new Date());
 
   gtag('config', '$google_analytics_id');
-
-setTimeout(doRedirect, 250);
-function doRedirect() {
-  window.location = \"$url\";
-}
 </script>
 ");
+?>

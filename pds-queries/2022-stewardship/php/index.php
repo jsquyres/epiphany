@@ -3,89 +3,57 @@
 // Constants
 
 $filename = "/home/itadmin/stewardship-2022-data/cookies.sqlite3";
-$timeout = 60 * 24 * 60 * 60;
 $unrecognized_key_url = "unknown.php";
-$stale_key_url = "stale.php";
 $error_url = "error.php";
 
 #----------------------------------------------------------------------
 
 # JMS Debug
-#print("<pre>\n");
+#print("<pre>\n"); flush();
+
+#----------------------------------------------------------------------
+
+# If we didn't get a key (i.e., a cookie), bump over to the page that
+# prompts for the cookie.
+if (!array_key_exists("key", $_GET)) {
+    header("Location: code.php");
+    exit(0);
+}
+$cookie = htmlspecialchars($_GET['key']);
 
 #----------------------------------------------------------------------
 
 $db_handle  = new SQLite3($filename);
 
-if (!array_key_exists('key', $_GET)) {
-    header("Location: code.php");
-    exit(0);
-}
-$cookie = $_GET['key'];
-// Escape the cookie!
-
-#----------------------------------------------------------------------
-
-// Make sure only 1 cookie matches
-$query = "SELECT COUNT(*) FROM COOKIES WHERE cookie=:cookie";
+# Get the URL from the most recent row in the database with the
+# correct cookie (remember: the cookie will be identical for all rows
+# with the same FID).
+$query = "SELECT url FROM COOKIES WHERE cookie=:cookie ORDER BY creation_timestamp LIMIT 1";
 $stmt = $db_handle->prepare($query);
 $stmt->bindParam(':cookie', $cookie);
 $result = $stmt->execute();
 $row = $result->fetchArray();
-$count = $row[0];
-if ($count == 0) {
+if (!$row) {
     header("Location: $unrecognized_key_url");
     exit(0);
-} else if ($count > 1) {
-    header("Location: $error_url");
-    exit(0);
 }
 
-#----------------------------------------------------------------------
-
-# If we get here, there's only one cookie that matches in the DB.
-# Get the UID corresponding to this cookie.
-$query = "SELECT uid,type FROM COOKIES WHERE cookie=:cookie";
-$stmt = $db_handle->prepare($query);
-$stmt->bindParam(':cookie', $cookie);
-$result = $stmt->execute();
-$row = $result->fetchArray();
-
-$uid  = $row['uid'];
-$type = $row['type'];
-
-#----------------------------------------------------------------------
-
-// Get the latest URL for this UID.
-$query = "SELECT url,creation_timestamp FROM COOKIES WHERE uid=:uid AND type=:type ORDER BY rowid DESC LIMIT 1";
-$stmt = $db_handle->prepare($query);
-$stmt->bindParam(':uid', $uid);
-$stmt->bindParam(':type', $type);
-$result = $stmt->execute();
-$row = $result->fetchArray();
-
-$url = $row['url'];
-$ts  = $row['creation_timestamp'];
-
-// See if we're past the stale time for this URL
-$g = gmmktime();
-if ($g > $ts + $timeout) {
-    header("Location: $stale_key_url");
-    exit(0);
-}
+$url  = $row['url'];
 
 #----------------------------------------------------------------------
 
 # If we got here, all is good.  Redirect away!
-# Do it via Javascript, so that we can get google analytics.
+# Do it via Javascript, so that we can delay a little bit to give the
+# Google Analytics a little time to process.
 
-if (strstr($url, 'streetAddress')) {
-    $form = "Family";
-    $path = "family-redirect";
-} else {
-    $form = "Member";
-    $path = "member-redirect";
-}
-print("<html>\n<head>\n");
+print("<html>\n<body>\n");
 include("google_analytics.inc");
-print("</head>\n</html>\n");
+print("<script>
+setTimeout(doRedirect, 250);
+function doRedirect() {
+  window.location = \"$url\";
+}
+</script>
+</body>
+</html>
+");
