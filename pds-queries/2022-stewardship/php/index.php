@@ -20,6 +20,7 @@ if (!array_key_exists("key", $_GET)) {
     exit(0);
 }
 $cookie = htmlspecialchars($_GET['key']);
+$cookie = strtoupper($cookie);
 
 #----------------------------------------------------------------------
 
