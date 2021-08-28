@@ -122,8 +122,7 @@ grid.add_row('109-Prayer Ministry Leadership')
 grid.add_row('110-Ten Percent Committee')
 grid.add_row('111-Hispanic Ministry Team')
 grid.add_row('113-Communications Adv. Comm.'
-             # JMS ???
-             '113-Communications Advance Committee')
+             '113-Communications Advisory Committee', new=True)
 
 _all_ministry_grids.append(grid)
 
@@ -170,7 +169,6 @@ grid = ministry_2d_grid('Liturgical Celebratory', 'lc')
 grid.add_row('309A-Acolyte Ministry 5:30P')
 grid.add_row('309B-Acolyte Ministry  9:00A')
 grid.add_row('309C-Acolyte Ministry 11:30A')
-#             '309-Acolytes')
 grid.add_row('310-Adult Choir')
 grid.add_row('311-Bell Choir')
 grid.add_row('312-Children\'s Music Ministry')
@@ -181,21 +179,17 @@ grid.add_row('313B-Communion: Homebound',
 grid.add_row('313C-Communion Ministers: 5:30')
 grid.add_row('313D-Communion Ministers: 9:00')
 grid.add_row('313E-Communion Ministers:11:30')
-
 grid.add_row('314-Communion Min. Coordinator',
                 '314-Communion Minister Coordinator')
 grid.add_row('315-Funeral Mass Ministry')
 grid.add_row('316A-Greeters 5:30P')
 grid.add_row('316B-Greeters 9:00A')
 grid.add_row('316C-Greeters 11:30A')
-#             '316-Greeters')
 grid.add_row('317-Instrumentalists & Cantors')
 grid.add_row('318A-Lector Ministry  5:30P')
 grid.add_row('318B-Lector  Ministry 9:00A')
 grid.add_row('318C-Lector Ministry 11:30A')
 grid.add_row('318D-Lector Ministry  Spanish')
-#              '318-Lectors  MASTER LIST'],
-#             '318-Lectors')
 grid.add_row('319-Liturgical Dance Ministry')
 grid.add_row('321-Prayer Chain Ministry')
 
@@ -208,12 +202,9 @@ grid = ministry_2d_grid('Stewardship & Evangelization', 'se')
 grid.add_row('401-Epiphany Companions')
 grid.add_row('402-New Members Coffee')
 grid.add_row('404-Welcome Desk')
-# JMS REMOVE?
-#grid.add_row('405-Parish Mission Plan Team')
 grid.add_row('406-Evangelization Team')
 grid.add_row('407-Stewardship Team')
-# JMS REMOVE?
-#grid.add_row('408-Engagement Team')
+grid.add_row('408-Engagement Team', new=True)
 
 _all_ministry_grids.append(grid)
 
@@ -221,9 +212,7 @@ _all_ministry_grids.append(grid)
 
 grid = ministry_2d_grid('Communication', 'cc')
 
-grid.add_row('450-Communications Committee')
-grid.add_row('451-Livestream Team Ministry')
-grid.add_row('452-Media Communications')
+grid.add_row('452-Media Communications', new=True)
 
 _all_ministry_grids.append(grid)
 
@@ -234,13 +223,10 @@ grid = ministry_2d_grid('Helping & Healing', 'hh')
 grid.add_row('500-BereavementReceptionSupprt',
                 '500-Bereavement Reception & Support')
 grid.add_row('501-Care of Sick: Communion',
-                '501-Care of Sick: Communion to the Sick and Homebound')
+                '501-Communion to the Sick and Homebound')
 grid.add_row('504-DivorceCare')
 grid.add_row('505-Healing Blanket Ministry')
 grid.add_row('508-Messages of Hope Ministry')
-# JMS REMOVE?
-#grid.add_row('513-Care of Sick: Transport')
-#grid.add_row('515-Childcare Ministry: Teen')
 
 _all_ministry_grids.append(grid)
 
@@ -252,16 +238,11 @@ grid.add_row('600-Men of Epiphany')
 grid.add_row('601-Sages (for 50 yrs. +)',
                 '601-Sages')
 grid.add_row('602-Singles Explore Life (SEL)')
-# JMS REMOVE?
-#grid.add_row('603-Soup Supper Ministry')
 grid.add_row('604-Wednesdays for Women')
 grid.add_row('605-Sunday Morning Coffee')
 grid.add_row('609-Octoberfest Plan Team 2022')
 grid.add_row('610-FeastOfEpiphanyPlanTeam\'23',
                 '610-Feast Of Epiphany Planning Team 2023')
-# JMS REMOVE?
-#grid.add_row('611-EpiphanyOuteachFellowship',
-#                '611-Epiphany Outreach Fellowship')
 
 _all_ministry_grids.append(grid)
 
@@ -270,8 +251,7 @@ _all_ministry_grids.append(grid)
 grid = ministry_2d_grid('Social Responsibility', 'sr')
 
 grid.add_row('700-Advocates for Common Good')
-grid.add_row('701-C.L.O.U.T./Justice Network',
-                '701-CLOUT')
+grid.add_row('701-CLOUT')
 grid.add_row('703-Eyeglass Ministry')
 grid.add_row('704-Habitat for Humanity')
 grid.add_row('705-Hunger & Poverty Ministry')
@@ -280,8 +260,8 @@ grid.add_row('707-St. Vincent DePaul')
 grid.add_row('709-Twinning Committee:Chiapas',
                 '709-Twinning Committee: Chiapas')
 grid.add_row('710-Environmental Concerns')
-grid.add_row('711-Dignity of Life Ministry')
-grid.add_row('712-Legislative Network')
+grid.add_row('711-Dignity of Life Ministry', new=True)
+grid.add_row('712-Legislative Network', new=True)
 
 _all_ministry_grids.append(grid)
 
@@ -295,10 +275,12 @@ grid.add_row('802-GathTheChildren Catechist',
                 '802-Gather the Children Catechists')
 grid.add_row('805-Monday Adult Bible Study')
 grid.add_row('807-RCIA Team')
-grid.add_row('809-Sunday Adult Form. Spanish')
+grid.add_row('809-Sunday Adult Form. Spanish',
+                '809-Sunday Adult Formation Spanish')
 grid.add_row('811-Family&Children\'s WorkGrp',
                 '811-Family and Children\'s Working Group')
-grid.add_row('812-Adult Form. Working Group')
+grid.add_row('812-Adult Form. Working Group',
+                '812-Adult Formation Working Group')
 
 _all_ministry_grids.append(grid)
 
@@ -350,11 +332,14 @@ jotform.add_family_pre_fill_data('Family name',
                     lambda fam: fam['hoh_and_spouse_salutation'],
                     'household')
 jotform.add_family_pre_fill_data('Family annual pledge for stewardship_year-1',
-                    lambda fam: "%24{val}".format(val=fam['calculated']['pledged']) if 'calculated' in fam else "%240",
+                    lambda fam: f"%24{fam['calculated']['pledged']}" if 'calculated' in fam else "%240",
                     'previousPledge')
 jotform.add_family_pre_fill_data('Family contributed so far in stewardship_year-1',
-                    lambda fam: "%24{val}".format(val=fam['calculated']['contributed']) if 'calculated' in fam else "%240",
-                    'soFarThisYear')
+                    lambda fam: f"%24{fam['calculated']['gifts']}" if 'calculated' in fam else "%240",
+                    'giftsThisYear')
+jotform.add_family_pre_fill_data('Family contributed to campaign in stewardship_year-1',
+                    lambda fam: f"%24{fam['calculated']['campaign']}" if 'calculated' in fam else "%240",
+                    'campaign')
 
 # These Jotform fields are specific to a Member
 jotform.add_member_pre_fill_data('mid',
