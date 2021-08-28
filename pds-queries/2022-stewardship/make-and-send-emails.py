@@ -85,6 +85,20 @@ def insert_url_cookie(fid, url, cookies, log=None):
             raw_uuid = uuid.uuid4()
             str_uuid = str(raw_uuid)
             cookie = str_uuid[0:6].upper()
+
+            # Make sure that this is an acceptable cookie.
+            # These cookies are written to a CSV/Spreadsheet, and we don't want
+            # them interpreted as numbers.  So make sure we don't have any of them.
+            # Reject cookies that start with 0
+            if cookie[0] == '0':
+                continue
+
+            # Reject cookies that are all digits
+            if cookie.isdigit():
+                continue
+
+            # Finally, reject cookies that are already in the database.
+            # Each cookie must be unique.
             query = 'SELECT cookie FROM cookies WHERE cookie=:cookie ORDER BY creation_timestamp DESC LIMIT 1'
             values = {
                 'cookie' : cookie,
@@ -131,7 +145,7 @@ def insert_url_cookie(fid, url, cookies, log=None):
     if log:
         log.debug(f"SQL query: {query} / {values}")
 
-    return f'{api_base_url}{cookie}'
+    return f'{api_base_url}{cookie}', cookie
 
 ##############################################################################
 
@@ -142,11 +156,10 @@ def insert_url_cookie(fid, url, cookies, log=None):
 # 3. N sets of Member-specific field data
 #
 # This routine constructs #1 and #2.
-def make_ministry_jotform_base_url(family, log=None):
+def make_jotform_base_url(family, log=None):
     # Calculate the family values if they have not already done so
     if 'calculated' not in family:
-        year = f'{stewardship_year - 2000 - 1:02}'
-        helpers.calculate_family_values(family, year=year, log=log)
+        helpers.calculate_family_values(family, stewardship_year-1, log=log)
 
     char = '?'
     url  = jotform.url
@@ -307,7 +320,12 @@ def _send_family_emails(message_body, families, submissions,
             to_addresses          = list()
             members_by_mid        = dict()
             family['stewardship'] = {
-                'sent_email' : True
+                'sent_email' : True,
+                'reason not sent' : '',
+                'to_addresses' : '',
+                'to_names' : '',
+                'code' : '',
+                'bounce_url' : '',
             }
 
             # Scan through the Members and generate a list of names and
@@ -355,8 +373,8 @@ def _send_family_emails(message_body, families, submissions,
 
             #----------------------------------------------------------------
 
-            # Construct the base ministry jotform URL with the Family-global data
-            jotform_url = make_ministry_jotform_base_url(family, log)
+            # Construct the base jotform URL with the Family-global data
+            jotform_url = make_jotform_base_url(family, log)
 
             # Now add to the ministry jotform URL all the Member data
             # Since we might truncate the number of family members, do them in
@@ -370,8 +388,9 @@ def _send_family_emails(message_body, families, submissions,
 
             # Now that we have the entire ministry jotform URL,
             # make a bounce URL for it
-            bounce_url  = insert_url_cookie(fid, jotform_url, cookies, log=log)
+            bounce_url, cookie  = insert_url_cookie(fid, jotform_url, cookies, log=log)
             family['stewardship']['bounce_url'] = bounce_url
+            family['stewardship']['code'] = cookie
 
             send_count = send_family_email(message_body, family,
                                            submissions,
@@ -382,15 +401,13 @@ def _send_family_emails(message_body, families, submissions,
 
 ###########################################################################
 
-def send_all_family_emails(args, families, submissions,
-                            cookies, log=None):
+def send_all_family_emails(args, families, submissions, cookies, log=None):
     return _send_family_emails(args.email_content, families, submissions,
                                cookies, log)
 
 #--------------------------------------------------------------------------
 
-def send_file_family_emails(args, families, submissions,
-                            cookies, log=None):
+def send_file_family_emails(args, families, submissions, cookies, log=None):
     some_families = dict()
 
     log.info("Reading Envelope ID file...")
@@ -414,8 +431,7 @@ def send_file_family_emails(args, families, submissions,
 
 #--------------------------------------------------------------------------
 
-def send_unsubmitted_family_emails(args, families, submissions,
-                            cookies, log=None):
+def send_unsubmitted_family_emails(args, families, submissions, cookies, log=None):
     # Find all families that have not *completely* submitted everything.
     # I.e., any family that has not yet submitted:
     # - all Family Member ministry forms
@@ -454,8 +470,7 @@ def send_unsubmitted_family_emails(args, families, submissions,
 
 #--------------------------------------------------------------------------
 
-def send_some_family_emails(args, families, submissions,
-                            cookies, log=None):
+def send_some_family_emails(args, families, submissions, cookies, log=None):
     target = args.email
     some_families = dict()
 
@@ -525,10 +540,12 @@ def write_csv(family_list, filename, extra, log=None):
         "household"          : 'Household names',
         'email'              : 'Email addresses',
         "previousPledge"     : '2020 total pledge',
-        "soFarThisYear"      : 'CY2020 giving so far',
+        "giftsThisYear"      : 'CY2020 giving so far',
     }
 
     csv_extra_family_fields = {
+        f'Campaign in CY{stewardship_year-1}' : lambda fam: f"${fam['calculated']['campaign']}" if 'calculated' in fam else 0,
+        'Code'                  : lambda fam: fam['stewardship']['code'],
         'Salulation'            : lambda fam: fam['MailingName'],
         'Street Address 1'      : lambda fam: fam['StreetAddress1'],
         'Street Address 2'      : lambda fam: fam['StreetAddress2'],
@@ -801,8 +818,8 @@ def main():
 
     # Record who/what we sent
     ts = datetime.datetime.now().strftime('%Y-%m-%d-%H%M%S')
-    write_csv(sent,     f'emails-sent-{ts}.csv',     extra=False, log=log)
-    write_csv(not_sent, f'emails-not-sent-{ts}.csv', extra=True,  log=log)
+    write_csv(sent,     f'emails-sent-{ts}.csv',     extra=True, log=log)
+    write_csv(not_sent, f'emails-not-sent-{ts}.csv', extra=True, log=log)
 
     # Close the databases
     cookies.connection.close()

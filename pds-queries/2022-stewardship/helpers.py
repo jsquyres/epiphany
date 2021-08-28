@@ -13,49 +13,54 @@ from datetime import timedelta
 
 #--------------------------------------------------------------------------
 
-# "year" is of the form: f'{stewardship_year - 2000 - 1:02}'
-def calculate_family_values(family, year, log=None):
-    print(f"JMS Calculating family values: {family['Name']}, year: {year}")
-    if 'funds' in family and year in family['funds']:
-        funds = family['funds'][year]
-    else:
-        funds = dict()
+def calculate_family_values(family, year, log):
+    def _calculate_pledge(year_funds, target_id, log):
+        amount = 0
+        for id, fund in year_funds.items():
+            if int(id) != target_id:
+                continue
 
-    if log:
-        log.debug(f"Size of family funds dictionary: {len(funds)}")
+            fund_rate = fund['fund_rate']
+            if fund_rate and fund_rate['FDTotal']:
+                amount += int(fund_rate['FDTotal'])
+
+        return amount
+
+    def _calculate_given(year_funds, target_id, log):
+        amount = 0
+        for id, fund in year_funds.items():
+            if int(id) != target_id:
+                continue
+
+            for item in fund['history']:
+                # Not quite sure how this happens, but sometimes the value is None.
+                val = item['item']['FEAmt']
+                if val is not None:
+                    amount += val
+
+        return amount
+
+    pds_year = f'{year - 2000:02}'
+    log.debug(f"Calculating family values: {family['Name']}, year: {year} (PDS year {pds_year})")
+    if 'funds' in family and pds_year in family['funds']:
+        year_funds = family['funds'][pds_year]
+    else:
+        year_funds = dict()
 
     # Calculate 3 values:
     # 1. Pledge amount for CY{year}
     # 2. Total amount given in CY{year} so far
-    # 3. Family names
-    pledged = 0
-    for id, fund in funds.items():
-        # We only want fund 1: stewardship contributions
-        if id != '1':
-            continue
-
-        fund_rate = fund['fund_rate']
-        if fund_rate and fund_rate['FDTotal']:
-            pledged += int(fund_rate['FDTotal'])
-
-    contributed = 0
-    for id, fund in funds.items():
-        # We only want fund 1: stewardship contributions
-        if id != '1':
-            continue
-
-        for item in fund['history']:
-            # Not quite sure how this happens, but sometimes the value is None.
-            val = item['item']['FEAmt']
-            if val is not None:
-                contributed += val
+    # 3. Amount given to campaign in CY{year}
+    pledged  = _calculate_pledge(year_funds, target_id=1, log=log)
+    gifts    = _calculate_given(year_funds, target_id=1, log=log)
+    campaign = _calculate_given(year_funds, target_id=9, log=log)
 
     family['calculated'] = {
         "pledged"        : pledged,
-        "contributed"    : contributed,
-        "household_name" : family['hoh_and_spouse_salutation'],
+        "gifts"          : gifts,
+        "campaign"       : campaign,
     }
-    print(f"JMS: calculated for family: {family['calculated']}")
+    log.debug(f"Calculated for family: {family['calculated']}")
 
 #--------------------------------------------------------------------------
 
