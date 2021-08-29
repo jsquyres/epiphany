@@ -61,8 +61,10 @@ args = None
 
 ###########################################################################
 
+exp_regex = re.compile("^\d+E\d+$")
+
 # Returns the redirect URL
-def insert_url_cookie(fid, url, cookies, log=None):
+def insert_url_cookie(fid, url, cookies, log):
 
     # See if there's a cookie for this FID already
     def _get_cookie():
@@ -95,6 +97,12 @@ def insert_url_cookie(fid, url, cookies, log=None):
 
             # Reject cookies that are all digits
             if cookie.isdigit():
+                continue
+
+            # Also reject cookies of the form \d+E\d+, because Excel/Google
+            # Sheets will interpret that as a number, too.
+            match = exp_regex.match(cookie)
+            if match:
                 continue
 
             # Finally, reject cookies that are already in the database.
@@ -156,7 +164,7 @@ def insert_url_cookie(fid, url, cookies, log=None):
 # 3. N sets of Member-specific field data
 #
 # This routine constructs #1 and #2.
-def make_jotform_base_url(family, log=None):
+def make_jotform_base_url(family, log):
     # Calculate the family values if they have not already done so
     if 'calculated' not in family:
         helpers.calculate_family_values(family, stewardship_year-1, log=log)
@@ -177,7 +185,7 @@ def make_jotform_base_url(family, log=None):
     return url
 
 # This routine constructs #3 (from above)
-def make_ministries_url_portion(member, member_number, log=None):
+def make_ministries_url_portion(member, member_number, log):
     def _check(ministry, member):
         for member_ministry in member['active_ministries']:
             if ministry == member_ministry['Description']:
@@ -228,8 +236,7 @@ def make_ministries_url_portion(member, member_number, log=None):
 
 #--------------------------------------------------------------------------
 
-def send_family_email(message_body, family, submissions,
-                      cookies, smtp, log=None):
+def send_family_email(message_body, family, submissions, cookies, smtp, log):
     # We won't get here unless there's at least one email address to
     # which to send.  But do a sanity check anyway.
     data = family['stewardship']
@@ -250,9 +257,8 @@ def send_family_email(message_body, family, submissions,
     log.info(f"Sending to (OVERRIDE): {smtp_to} (was {was})")
     #---------------------------------------------------------------------
 
-    if log:
-        log.info("    Sending to Family {names} at {emails}"
-                 .format(names=' / '.join(data['to_names']), emails=smtp_to))
+    log.info("    Sending to Family {names} at {emails}"
+             .format(names=' / '.join(data['to_names']), emails=smtp_to))
 
     # Note: we can't use the normal string.format() to substitute in
     # values because the HTML/CSS includes a bunch of instances of {}.
@@ -261,6 +267,7 @@ def send_family_email(message_body, family, submissions,
     message_body = message_body.replace("{family_names}",
                         family['hoh_and_spouse_salutation'])
     message_body = message_body.replace("{bounce_url}", ministry_link)
+    message_body = message_body.replace("{family_code}", family['stewardship']['code'])
 
     # JMS kinda yukky that "args" is global
     global args
@@ -285,8 +292,7 @@ def send_family_email(message_body, family, submissions,
 
 ###########################################################################
 
-def _send_family_emails(message_body, families, submissions,
-                        cookies, log=None):
+def _send_family_emails(message_body, families, submissions, cookies, log):
     # Send one email to the head-of-household + spouse in each family
     # in the dictionary.  Send them in fid order so that if we get
     # interrupted and have to start again, we can do so
@@ -339,21 +345,30 @@ def _send_family_emails(message_body, families, submissions,
 
                 to_names[member['last']] = True
 
+            # As of September 2021, Jotform cannot handle more than 7 Members'
+            # worth of data in a single form (except with Chrome on a
+            # laptop/desktop -- all other cases fail on the final submit).  So
+            # if this Family has more than 7 Members, do not send to them.
+            if len(family['members']) > MAX_PDS_FAMILY_MEMBER_NUM:
+                family['stewardship']['sent_email'] = False
+                family['stewardship']['reason not sent'] = 'Too many Members in Family'
+                if log:
+                    log.info(f"    *** Too many Members in Family ({len(family['members'])} > {MAX_PDS_FAMILY_MEMBER_NUM}) -- will not send")
+
+                # This family will not be processed by Jotform.  So we skip
+                # this family.
+                continue
+
             if len(to_addresses) == 0:
                 family['stewardship']['sent_email'] = False
                 family['stewardship']['reason not sent'] = 'No HoH/Spouse emails'
                 if log:
                     log.info(f"    *** Have no HoH/Spouse emails for Family {family['Name']}")
 
-            # As of September 2021, Jotform cannot handle more than 6 Members'
-            # worth of data in a single form (except with Chrome on a
-            # laptop/desktop -- all other cases fail on the final submit).  So
-            # if this Family has more than 6 Members, do not send to them.
-            if len(family['members']) > MAX_PDS_FAMILY_MEMBER_NUM:
-                family['stewardship']['sent_email'] = False
-                family['stewardship']['reason not sent'] = 'Too many Members in Family'
-                if log:
-                    log.info(f"    *** Too many Members in Family ({len(family['members'])} > {MAX_PDS_FAMILY_MEMBER_NUM}) -- will not send")
+                # Note that we fall through and still process this family, even
+                # though we won't send them an email (because they might get
+                # their Family Code some other way -- e.g., by calling the
+                # office -- and do Jotform eStewardship that way).
 
             #----------------------------------------------------------------
 
@@ -365,11 +380,6 @@ def _send_family_emails(message_body, families, submissions,
             # (we use this data in making the ministry jotform base URL, below)
             family['stewardship']['to_addresses'] = to_addresses
             family['stewardship']['to_names'] = to_names
-
-            # Check if we're going to send
-            if not family['stewardship']['sent_email']:
-                email_not_sent.append(family)
-                continue
 
             #----------------------------------------------------------------
 
@@ -391,6 +401,15 @@ def _send_family_emails(message_body, families, submissions,
             bounce_url, cookie  = insert_url_cookie(fid, jotform_url, cookies, log=log)
             family['stewardship']['bounce_url'] = bounce_url
             family['stewardship']['code'] = cookie
+
+            #----------------------------------------------------------------
+
+            # Check if we're going to send
+            if not family['stewardship']['sent_email']:
+                email_not_sent.append(family)
+                continue
+
+            #----------------------------------------------------------------
 
             send_count = send_family_email(message_body, family,
                                            submissions,
@@ -533,7 +552,7 @@ def cookiedb_open(filename, log=None):
 
 ###########################################################################
 
-def write_csv(family_list, filename, extra, log=None):
+def write_email_csv(family_list, filename, extra, log):
     csv_family_fields = {
         "parishKey"          : 'Envelope ID',
         "fid"                : 'FID',
@@ -571,10 +590,6 @@ def write_csv(family_list, filename, extra, log=None):
 
     csv_fieldnames = fieldnames.copy()
 
-    if log:
-        log.info("Writing result CSV: {filename}"
-                 .format(filename=filename))
-
     with open(filename, 'w', newline='') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=csv_fieldnames)
         writer.writeheader()
@@ -610,6 +625,45 @@ def write_csv(family_list, filename, extra, log=None):
 
                 log.debug(f"Writing row: {row}")
                 writer.writerow(row)
+
+    log.info(f"Wrote {filename}")
+
+###########################################################################
+
+def write_code_csv(families, filename, log):
+    code_field = f'eStewardship {stewardship_year} code'
+    fields = [
+        'FID',
+        'Envelope ID',
+        'Family name',
+        code_field,
+    ]
+
+    with open(filename, 'w', newline='') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=fields)
+        writer.writeheader()
+
+        for family in families.values():
+            if 'stewardship' not in family:
+                continue
+
+            code = family['stewardship']['code']
+            if len(code.strip()) == 0:
+                # If this family will not be processed by Jotform for some
+                # reason (e.g., too many members), there will be no code.  Skip
+                # the family.
+                continue
+
+            row = {
+                'FID' : family['FamRecNum'],
+                'Family name' : family['Name'],
+                'Envelope ID' : f"'{family['ParKey']}",
+                code_field : family['stewardship']['code'],
+            }
+
+            writer.writerow(row)
+
+    log.info(f"Wrote {filename}")
 
 ###########################################################################
 
@@ -818,8 +872,9 @@ def main():
 
     # Record who/what we sent
     ts = datetime.datetime.now().strftime('%Y-%m-%d-%H%M%S')
-    write_csv(sent,     f'emails-sent-{ts}.csv',     extra=True, log=log)
-    write_csv(not_sent, f'emails-not-sent-{ts}.csv', extra=True, log=log)
+    write_email_csv(sent,     f'emails-sent-{ts}.csv',     extra=True, log=log)
+    write_email_csv(not_sent, f'emails-not-sent-{ts}.csv', extra=True, log=log)
+    write_code_csv(families, f'family-codes-{ts}.csv', log)
 
     # Close the databases
     cookies.connection.close()
