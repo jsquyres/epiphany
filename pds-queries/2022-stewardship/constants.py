@@ -336,9 +336,12 @@ jotform.add_family_pre_fill_data('Family annual pledge for stewardship_year-1',
                     'previousPledge')
 jotform.add_family_pre_fill_data('Family contributed so far in stewardship_year-1',
                     lambda fam: f"%24{fam['calculated']['gifts']}" if 'calculated' in fam else "%240",
+                    'giftsThisYear_fmt')
+jotform.add_family_pre_fill_data('Family contributed so far in stewardship_year-1, hidden, just number',
+                    lambda fam: f"{fam['calculated']['gifts']}" if 'calculated' in fam else "0",
                     'giftsThisYear')
 jotform.add_family_pre_fill_data('Family contributed to campaign in stewardship_year-1',
-                    lambda fam: f"%24{fam['calculated']['campaign']}" if 'calculated' in fam else "%240",
+                    lambda fam: f"{fam['calculated']['campaign']}" if 'calculated' in fam else "0",
                     'campaign')
 
 # These Jotform fields are specific to a Member
