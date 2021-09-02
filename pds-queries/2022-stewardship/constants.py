@@ -256,7 +256,7 @@ grid.add_row('703-Eyeglass Ministry')
 grid.add_row('704-Habitat for Humanity')
 grid.add_row('705-Hunger & Poverty Ministry')
 grid.add_row('706-Prison Ministry')
-grid.add_row('707-St. Vincent dePaul')
+grid.add_row('707-St. Vincent de Paul')
 grid.add_row('709-Twinning Committee:Chiapas',
                 '709-Twinning Committee: Chiapas')
 grid.add_row('710-Environmental Concerns')
