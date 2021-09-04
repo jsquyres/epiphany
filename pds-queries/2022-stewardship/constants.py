@@ -82,7 +82,7 @@ class ministry_2d_grid:
         for i in range(1, field_max + 1):
             self.member_fields.append(f'{field_prefix}{i}')
 
-    def add_row(self, pds_ministry, row_heading=None, new=False):
+    def add_row(self, pds_ministry, row_heading=None, new=False, special2022=None):
         # If no row_heading is provided, it is the same as the PDS ministry name
         if row_heading is None:
             row_heading = pds_ministry
@@ -94,6 +94,10 @@ class ministry_2d_grid:
             'pds_ministry'    : pds_ministry,
             'row_heading'     : row_heading,
             'new'             : new,
+            # This field is only needed for 2022 eStewardship.  See
+            # make-and-send-emails.py for details. This field should be removed
+            # after 2022 eStewardship.
+            'special2022'     : special2022,
 
             # This value is filled in much later.
             # It will be the name of the column in the Jotform gsheet of
@@ -166,30 +170,30 @@ _all_ministry_grids.append(grid)
 
 grid = ministry_2d_grid('Liturgical Celebratory', 'lc')
 
-grid.add_row('309A-Acolyte Ministry 5:30P')
-grid.add_row('309B-Acolyte Ministry  9:00A')
-grid.add_row('309C-Acolyte Ministry 11:30A')
+grid.add_row('309A-Acolyte Ministry 5:30P', special2022='309')
+grid.add_row('309B-Acolyte Ministry  9:00A', special2022='309')
+grid.add_row('309C-Acolyte Ministry 11:30A', special2022='309')
 grid.add_row('310-Adult Choir')
 grid.add_row('311-Bell Choir')
 grid.add_row('312-Children\'s Music Ministry')
 grid.add_row('313A-Communion: Weekday',
-             '313A-Communion Ministers: Weekday')
+             '313A-Communion Ministers: Weekday', special2022='313')
 grid.add_row('313B-Communion: Homebound',
-             '313B-Communion Ministers: Weekday')
-grid.add_row('313C-Communion Ministers: 5:30')
-grid.add_row('313D-Communion Ministers: 9:00')
-grid.add_row('313E-Communion Ministers:11:30')
+             '313B-Communion Ministers: Homebound', special2022='313')
+grid.add_row('313C-Communion Ministers: 5:30P', special2022='313')
+grid.add_row('313D-Communion Ministers: 9:00A', special2022='313')
+grid.add_row('313E-Communion Ministers:11:30A', special2022='313')
 grid.add_row('314-Communion Min. Coordinator',
                 '314-Communion Minister Coordinator')
 grid.add_row('315-Funeral Mass Ministry')
-grid.add_row('316A-Greeters 5:30P')
-grid.add_row('316B-Greeters 9:00A')
-grid.add_row('316C-Greeters 11:30A')
+grid.add_row('316A-Greeters 5:30P', special2022='316')
+grid.add_row('316B-Greeters 9:00A', special2022='316')
+grid.add_row('316C-Greeters 11:30A', special2022='316')
 grid.add_row('317-Instrumentalists & Cantors')
-grid.add_row('318A-Lector Ministry  5:30P')
-grid.add_row('318B-Lector  Ministry 9:00A')
-grid.add_row('318C-Lector Ministry 11:30A')
-grid.add_row('318D-Lector Ministry  Spanish')
+grid.add_row('318A-Lector Ministry  5:30P', special2022='318')
+grid.add_row('318B-Lector  Ministry 9:00A', special2022='318')
+grid.add_row('318C-Lector Ministry 11:30A', special2022='318')
+grid.add_row('318D-Lector Ministry  Spanish', special2022='318')
 grid.add_row('319-Liturgical Dance Ministry')
 grid.add_row('321-Prayer Chain Ministry')
 
