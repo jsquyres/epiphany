@@ -229,8 +229,37 @@ def make_ministries_url_portion(member, member_number, log):
             if match:
                 column = COL_AM_INVOLVED
 
-            url += f"&{field}[{row_num}][{column}]=true"
-            # Example: parishLeadership[1][2]`=true`
+            # Special handling for the 2022 eStewardship, when we converted
+            # 4 ministries from a "master list" or "interested only" single
+            # ministry to having multiple lettered minstries to indicate a
+            # specific delinieation of that ministry.  E.g., "313 Communion
+            # Ministers" became "313A Communion: Weekday", "313B Communion:
+            # Homebound", "313C Communion Ministers: 9:00A", ... etc.
+            #
+            # The issue is that the we have decided to split out from the
+            # "master list" kind of ministries, but the data that tracked what
+            # sub-ministry choices the parishioners wanted was not in PDS -- it
+            # was in an external, very messy spreadsheet.  It was not easy to
+            # get this data into PDS before eStewardship.  So we decided that
+            # anyone who is in any of these 4 ministries, just leave their radio
+            # buttons blank and make them fill in their choices manually (the
+            # Jotform fields are required, so they will *have* to fill in their
+            # choices).  Anyone who is not in these ministries will get the
+            # normal COL_NOT_INVOLED pre-populated value.
+            #
+            # This special handling should be removed after 2022 (because the
+            # data will properly be in PDS at that point).
+            if row['special2022'] != None:
+                prefix = row['special2022']
+                for member_ministry in member['active_ministries']:
+                    if member_ministry['Description'].startswith(prefix):
+                        column = None
+                        break
+
+            # If relevant, pre-populate the correct column
+            if column != None:
+                url += f"&{field}[{row_num}][{column}]=true"
+                # Example: parishLeadership[1][2]`=true`
 
     return url
 
