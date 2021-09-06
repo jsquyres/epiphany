@@ -1068,9 +1068,9 @@ def load_families_and_members(filename=None, pds=None,
     # the context of just Members and Families).
     global _sql_data
     _sql_data = {
-        # So far, we only care about ministries, but this dictionary
-        # could easily be expanded to include other things.
         'ministries' : ministries,
+        'member keywords' : mem_keyword_types,
+        'family keywords' : fam_keyword_types,
     }
 
     _link_family_emails(families, emails)
