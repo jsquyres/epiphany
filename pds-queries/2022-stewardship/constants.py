@@ -178,11 +178,9 @@ grid.add_row('311-Bell Choir')
 grid.add_row('312-Children\'s Music Ministry')
 grid.add_row('313A-Communion: Weekday',
              '313A-Communion Ministers: Weekday', special2022='313')
-grid.add_row('313B-Communion: Homebound',
-             '313B-Communion Ministers: Homebound', special2022='313')
-grid.add_row('313C-Communion Ministers: 5:30P', special2022='313')
-grid.add_row('313D-Communion Ministers: 9:00A', special2022='313')
-grid.add_row('313E-Communion Ministers:11:30A', special2022='313')
+grid.add_row('313B-Communion Ministers: 5:30P', special2022='313')
+grid.add_row('313C-Communion Ministers: 9:00A', special2022='313')
+grid.add_row('313D-Communion Ministers:11:30A', special2022='313')
 grid.add_row('314-Communion Min. Coordinator',
                 '314-Communion Minister Coordinator')
 grid.add_row('315-Funeral Mass Ministry')
