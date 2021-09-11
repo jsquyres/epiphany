@@ -6,7 +6,7 @@ orig=cookies.sqlite3
 copy=copy-cookies.sqlite3
 
 server_name=api.epiphanycatholicchurch.org
-server_location=stewardship-2021-data
+server_location=stewardship-2022-data
 
 if test -x /bin/true; then
     true=/bin/true
