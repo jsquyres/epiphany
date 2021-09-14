@@ -322,7 +322,7 @@ def send_family_email(message_body, family, submissions, cookies, smtp, log):
 ###########################################################################
 
 def _send_family_emails(message_body, families, submissions, cookies, log):
-    # Send one email to the head-of-household + spouse in each family
+    # Send one email to the recipient in each family
     # in the dictionary.  Send them in fid order so that if we get
     # interrupted and have to start again, we can do so
     # deterministically.
@@ -351,9 +351,6 @@ def _send_family_emails(message_body, families, submissions, cookies, log):
             family = families[fid]
             log.info(f"=== Family: {family['Name']}")
 
-            to_names              = dict()
-            to_addresses          = list()
-            members_by_mid        = dict()
             family['stewardship'] = {
                 'sent_email' : True,
                 'reason not sent' : '',
@@ -362,17 +359,29 @@ def _send_family_emails(message_body, families, submissions, cookies, log):
                 'code' : '',
                 'bounce_url' : '',
             }
+            members_by_mid = { member['MemRecNum'] : member for member in family['members'] }
+            to_names = { member['last'] : True for member in family['members'] }
 
             # Scan through the Members and generate a list of names and
-            # email addresses that we need.
+            # email addresses that we need.  First, look for Members with the
+            # "Business Logicstics Email" label.
+            key          = 'keywords'
+            keyword      = 'Business Logistics Email'
+            to_addresses = list()
             for member in family['members']:
-                members_by_mid[member['MemRecNum']] = member
-                log.info(f"    Member: {member['Name']}")
-                if PDSChurch.is_member_hoh_or_spouse(member):
+                if key in member and keyword in member[key]:
+                    log.info(f"  {member['Name']} has the {keyword} keyword")
                     em = PDSChurch.find_any_email(member)
                     to_addresses.extend(em)
 
-                to_names[member['last']] = True
+            # If we got no to_addresses, then get the spouse/hoh email addresses.
+            if len(to_addresses) == 0:
+                log.info(f"  Found no Family Members with the {keyword} keyword that have email addresses; falling back to HoH/Spouse")
+                for member in family['members']:
+                    if PDSChurch.is_member_hoh_or_spouse(member):
+                        log.info(f"  {member['Name']} is HoH/Spouse")
+                        em = PDSChurch.find_any_email(member)
+                        to_addresses.extend(em)
 
             # As of September 2021, Jotform cannot handle more than 7 Members'
             # worth of data in a single form (except with Chrome on a
