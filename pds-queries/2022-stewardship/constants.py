@@ -370,6 +370,7 @@ jotform_gsheet_columns['prelude'] = [
     'EnvId',
     'fid',
     'Emails to reply to',
+    'Spiritual participation',
 ]
 
 #--------------------------------------------------------------------------
@@ -397,9 +398,12 @@ for member_num in range(1, max_number+1):
 #--------------------------------------------------------------------------
 
 jotform_gsheet_columns['family'] = [
+    'Gifts from campaign',
+    'Gifts this year',
     'Family names',
     f'CY{stewardship_year-1} pledge',
-    f'CY{stewardship_year-1} amount',
+    f'CY{stewardship_year-1} gifts',
+    f'CY{stewardship_year} participation',
     f'CY{stewardship_year} pledge',
     f'CY{stewardship_year} frequency',
     f'CY{stewardship_year} mechanisms',

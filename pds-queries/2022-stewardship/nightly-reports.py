@@ -26,7 +26,7 @@ from datetime import datetime
 from datetime import timedelta
 
 from oauth2client import tools
-from apiclient.http import MediaFileUpload
+from googleapiclient.http import MediaFileUpload
 from email.message import EmailMessage
 
 import matplotlib
@@ -244,7 +244,7 @@ def comments_to_xlsx(google, jotform_data, id_field, emails_field, name_field, e
     comments_label    = "Comments"
     pledge_last_label = f'CY{stewardship_year-1} pledge'
     pledge_cur_label  = f'CY{stewardship_year} pledge'
-    amount_label      = f'CY{stewardship_year-1} amount'
+    amount_label      = f'CY{stewardship_year-1} gifts'
 
     # Setup the title row
     # Title rows + set column widths
@@ -288,7 +288,7 @@ def comments_to_xlsx(google, jotform_data, id_field, emails_field, name_field, e
     def _extract_money_string(val):
         if val.startswith('$'):
             val = val[1:]
-        val = int(val.replace(',', ''))
+        val = int(float(val.replace(',', '').strip()))
 
         if val != 0:
             return int(val), money_format
@@ -299,6 +299,7 @@ def comments_to_xlsx(google, jotform_data, id_field, emails_field, name_field, e
 
     # Now fill in all the data rows
     xlsx_row = 2
+    log.info(f"Checking {len(jotform_data)} rows for comments")
     for row in jotform_data:
         # Skip if the comments are empty
         if comments_label not in row:
@@ -454,7 +455,7 @@ def statistics_compute(pds_families, unique_fid_jotform, log):
     eligible = dict()
     for fid, family in pds_families.items():
         for member in family['members']:
-            if helpers.member_is_hoh_or_spouse(member):
+            if PDSChurch.is_member_hoh_or_spouse(member):
                 em = PDSChurch.find_any_email(member)
                 if len(em) == 0:
                     continue
@@ -1338,6 +1339,25 @@ def _export_gsheet_to_csv(service, start, end, google_sheet_id, fieldnames):
         if 'Submission' in row['SubmitDate']:
             continue
 
+        # As of Sep 2021, Google Sheets CSV export sucks. :-(
+        # The value of the "Edit Submission" field from Jotform is something
+        # like:
+        #
+        # =HYPERLINK("https://www.jotform.com/edit/50719736733810","Edit Submission")
+        #
+        # Google Sheet CSV export splits this into 2 fields.  The first one
+        # has a column heading of "Edit Submission" (which is what the
+        # Jotform-created sheet column heading it) and contains the long number
+        # in the URL.  The 2nd one has no column heading, and is just the words
+        # "Edit Submission".  :-(  CSV.DictReader therefore puts a value of
+        # "Edit Submission" in a dict entry of "None" (because it has no column
+        # heading).
+        #
+        # For our purposes here, just delete the "None" entry from the
+        # DictReader.
+        if None in row and row[None] == ['Edit Submission']:
+            del row[None]
+
         # Is this submission between start and end?
         submit_date = helpers.jotform_date_to_datetime(row['SubmitDate'])
         if submit_date < start or submit_date > end:
@@ -1466,7 +1486,7 @@ def main():
     #---------------------------------------------------------------
 
     # Load all the results
-    log.info("Downloading Jotform raw data...")
+    log.info(f"Downloading Jotform raw data ({jotform_gsheet_gfile_id})...")
     jotform_all = read_jotform_gsheet(google, epoch, end, jotform_gsheet_gfile_id)
 
     # Load a range of results
