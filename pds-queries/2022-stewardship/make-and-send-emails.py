@@ -347,9 +347,9 @@ def _send_family_emails(message_body, families, submissions, cookies, log):
 
         # Iterate through all the family emails that we need to send
         sorted_fids = sorted(families)
-        for fid in sorted_fids:
+        for i, fid in enumerate(sorted_fids):
             family = families[fid]
-            log.info(f"=== Family: {family['Name']}")
+            log.info(f"=== Family: {family['Name']} ({i} of {len(sorted_fids)})")
 
             family['stewardship'] = {
                 'sent_email' : True,
