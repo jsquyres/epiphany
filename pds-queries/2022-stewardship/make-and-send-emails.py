@@ -351,6 +351,12 @@ def _send_family_emails(message_body, families, submissions, cookies, log):
             family = families[fid]
             log.info(f"=== Family: {family['Name']} ({i} of {len(sorted_fids)})")
 
+            # SPECIAL EXCEPTION
+            # Skip this family; she is deceased
+            if family['ParKey'].strip() == "0459" or fid == 89340:
+                log.warning("SPECIAL EXCEPTION: Skipping this family")
+                continue
+
             family['stewardship'] = {
                 'sent_email' : True,
                 'reason not sent' : '',
