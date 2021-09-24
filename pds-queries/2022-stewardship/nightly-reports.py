@@ -79,10 +79,10 @@ pledge_email_to = fid_participation_email_to
 pledge_email_subject = 'Pledge PDS CSV import file'
 
 # JMS for debugging/testing
-#statistics_email_to = 'jsquyres@gmail.com'
-#comments_email_to = 'jsquyres@gmail.com'
-#fid_participation_email_to = 'jsquyres@gmail.com'
-#pledge_email_to = 'jsquyres@gmail.com'
+statistics_email_to = 'jeff@squyres.com'
+comments_email_to = statistics_email_to
+fid_participation_email_to = statistics_email_to
+pledge_email_to = statistics_email_to
 
 
 ##############################################################################
@@ -114,22 +114,24 @@ def _upload_to_gsheet(google, google_folder_id, google_filename, mime_type, loca
     # workers group to edit the file (if you are view-only, you
     # can't even adjust the column widths, which will be
     # problematic for the comments report!).
-    try:
-        perm = {
-            'type': 'group',
-            'role': 'writer',
-            'emailAddress': gsheet_editors,
-        }
-        out = google.permissions().create(fileId=file['id'],
-                                          supportsTeamDrives=True,
-                                          sendNotificationEmail=False,
-                                          body=perm,
-                                          fields='id').execute()
-        log.debug(f"Set Google permission for file: {id}")
-    except:
-        log.error('Google set permission failed for some reason:')
-        log.error(traceback.format_exc())
-        exit(1)
+    # JMS Fix me
+    if False:
+        try:
+            perm = {
+                'type': 'group',
+                'role': 'writer',
+                'emailAddress': gsheet_editors,
+            }
+            out = google.permissions().create(fileId=file['id'],
+                                              supportsTeamDrives=True,
+                                              sendNotificationEmail=False,
+                                              body=perm,
+                                              fields='id').execute()
+            log.debug(f"Set Google permission for file: {id}")
+        except:
+            log.error('Google set permission failed for some reason:')
+            log.error(traceback.format_exc())
+            exit(1)
 
     # Remove the temp file when we're done
     if remove_local:
@@ -1501,8 +1503,8 @@ def main():
 
     # These two reports were run via cron at 12:07am on Mon-Fri
     # mornings.
-    comments_report(args, google, start, end, time_period,
-                    jotform_range, log)
+    #comments_report(args, google, start, end, time_period,
+    #                jotform_range, log)
     statistics_report(args, end, pds_members, pds_families,
                       jotform_all, log)
 
