@@ -353,6 +353,9 @@ jotform.add_member_pre_fill_data('mid',
 jotform.add_member_pre_fill_data('name',
                     lambda mem: helpers.url_escape(mem['full_name']),
                     [ f'name{i}' for i in range(1, MAX_PDS_FAMILY_MEMBER_NUM+1) ])
+jotform.add_member_pre_fill_data('participation',
+                    lambda mem: '',
+                    [ f'mp{i}' for i in range(1, MAX_PDS_FAMILY_MEMBER_NUM+1) ])
 
 ###########################################################################
 
