@@ -715,6 +715,16 @@ def statistics_report(args, end, pds_members, pds_families, jotform, log):
 
 ##############################################################################
 
+def pledge_comparison_report(jotform_this_year, jotform_last_year, log):
+    # We have this year's de-duplicated data (jotform_all). We need to load the
+    # prior year's data. The process for loading the prior year's data is going
+    # to be different each year because the specific Jotform fields change every
+    # year.
+
+    log.info("Pledge comparison report!")
+
+##############################################################################
+
 # Columns that I need
 # - fid
 # - Recurring Charge Name:
@@ -1320,25 +1330,18 @@ The same spreadsheet <a href="{url}">is also available as a Google Sheet</a>.</p
 
 ##############################################################################
 
-def _export_gsheet_to_csv(service, start, end, google_sheet_id, fieldnames):
+def _export_gsheet_to_csv(service, start, end, google_sheet_id, fieldnames, log):
     response = service.files().export(fileId=google_sheet_id,
                                       mimeType=Google.mime_types['csv']).execute()
-
-    # Some of the field names will be lists.  In those cases, use the first field name in the list.
-    final_fieldnames = list()
-    final_fieldnames.extend(fieldnames['prelude'])
-    for member in fieldnames['members']:
-        final_fieldnames.extend(member)
-    final_fieldnames.extend(fieldnames['family'])
-    final_fieldnames.extend(fieldnames['epilog'])
-
     csvreader = csv.DictReader(response.decode('utf-8').splitlines(),
-                               fieldnames=final_fieldnames)
+                               fieldnames=fieldnames)
 
     rows = list()
     for row in csvreader:
         # Skip title row
         if 'Submission' in row['SubmitDate']:
+            continue
+        if row['fid'] == '':
             continue
 
         # As of Sep 2021, Google Sheets CSV export sucks. :-(
@@ -1361,9 +1364,10 @@ def _export_gsheet_to_csv(service, start, end, google_sheet_id, fieldnames):
             del row[None]
 
         # Is this submission between start and end?
-        submit_date = helpers.jotform_date_to_datetime(row['SubmitDate'])
-        if submit_date < start or submit_date > end:
-            continue
+        if start is not None and end is not None:
+            submit_date = helpers.jotform_date_to_datetime(row['SubmitDate'])
+            if submit_date < start or submit_date > end:
+                continue
 
         rows.append(row)
 
@@ -1371,13 +1375,24 @@ def _export_gsheet_to_csv(service, start, end, google_sheet_id, fieldnames):
 
 #-----------------------------------------------------------------------------
 
-def read_jotform_gsheet(google, start, end, gfile_id):
+def read_jotform_gsheet(google, start, end, fieldnames, gfile_id, log):
+    log.info(f"Downloading Jotform raw data ({jotform_gsheet_gfile_id})...")
+
+    # Some of the field names will be lists.  In those cases, use the first
+    # field name in the list.
+    final_fieldnames = list()
+    final_fieldnames.extend(fieldnames['prelude'])
+    for member in fieldnames['members']:
+        final_fieldnames.extend(member)
+    final_fieldnames.extend(fieldnames['family'])
+    final_fieldnames.extend(fieldnames['epilog'])
+
     csv_data = _export_gsheet_to_csv(google, start, end, gfile_id,
-                                      jotform_gsheet_columns)
+                                      final_fieldnames, log)
 
     # Deduplicate: save the last row number for any given FID
     # (we only really care about the *last* entry that someone makes)
-    deduplicated = dict()
+    out_dict = dict()
     for row in csv_data:
         fid = row['fid']
 
@@ -1385,14 +1400,12 @@ def read_jotform_gsheet(google, start, end, gfile_id):
         if fid == 'fid':
             continue
 
-        deduplicated[fid] = row
+        out_dict[fid] = row
 
     # Turn this dictionary into a list of rows
-    out = list()
-    for fid in sorted(deduplicated):
-        out.append(deduplicated[fid])
+    out_list = [ out_dict[fid] for fid in sorted(out_dict) ]
 
-    return out
+    return out_list, out_dict
 
 ##############################################################################
 
@@ -1434,10 +1447,11 @@ def main():
 
     # Calculate the start and end of when we are analyzing in the
     # source data
-    epoch = datetime(year=1971, month=1, day=1)
-    end = datetime.now()
+    start = None
+    end = None
     if args.all:
-        start = epoch
+        time_period = 'all results to date'
+
     else:
         # If not supplied on the command line:
         # Sun: skip
@@ -1453,13 +1467,10 @@ def main():
         else:
             start = end - timedelta(days=1)
 
-    # No one wants to see the microseconds
-    start = start - timedelta(microseconds=start.microsecond)
-    end   = end   - timedelta(microseconds=end.microsecond)
+        # No one wants to see the microseconds
+        start = start - timedelta(microseconds=start.microsecond)
+        end   = end   - timedelta(microseconds=end.microsecond)
 
-    if args.all:
-        time_period = 'all results to date'
-    else:
         time_period = '{start} - {end}'.format(start=start, end=end)
 
     log.info("Comments for: {tp}".format(tp=time_period))
@@ -1488,14 +1499,29 @@ def main():
     #---------------------------------------------------------------
 
     # Load all the results
-    log.info(f"Downloading Jotform raw data ({jotform_gsheet_gfile_id})...")
-    jotform_all = read_jotform_gsheet(google, epoch, end, jotform_gsheet_gfile_id)
+    jotform_all_list, jotform_all_dict = read_jotform_gsheet(google,
+                                    start=None, end=None,
+                                    fieldnames=jotform_gsheet_columns,
+                                    gfile_id=jotform_gsheet_gfile_id,
+                                    log=log)
 
     # Load a range of results
-    if start == epoch:
-        jotform_range = jotform_all.copy()
+    if start is None:
+        jotform_range_list = jotform_all_list.copy()
     else:
-        jotform_range = read_jotform_gsheet(google, start, end, jotform_gsheet_gfile_id)
+        jotform_range_list, jotform_range_dict = read_jotform_gsheet(google,
+                                    start=start, end=end,
+                                    fieldnames=jotform_gsheet_columns,
+                                    gfile_id=jotform_gsheet_gfile_id,
+                                    log=log)
+
+    #---------------------------------------------------------------
+
+    import constants_2021
+    _, jotform_last_year = read_jotform_gsheet(google, start=None, end=None,
+                            fieldnames=constants_2021.jotform_gsheet_columns,
+                            gfile_id=constants_2021.jotform_gsheet_gfile_id,
+                            log=log)
 
     #---------------------------------------------------------------
 
@@ -1504,14 +1530,16 @@ def main():
     # These two reports were run via cron at 12:07am on Mon-Fri
     # mornings.
     #comments_report(args, google, start, end, time_period,
-    #                jotform_range, log)
-    statistics_report(args, end, pds_members, pds_families,
-                      jotform_all, log)
+    #                jotform_range_list, log)
+    #statistics_report(args, end, pds_members, pds_families,
+    #                  jotform_all_list, log)
+
+    pledge_comparison_report(jotform_all_dict, jotform_last_year, log)
 
     # These reports were uncommented and run by hand upon demand.
-    #family_pledge_csv_report(args, google, pds_families, jotform_all, log)
-    #family_status_csv_report(args, google, pds_families, jotform_all, log)
+    #family_pledge_csv_report(args, google, pds_families, jotform_all_list, log)
+    #family_status_csv_report(args, google, pds_families, jotform_all_list, log)
     #member_ministry_csv_report(args, google, start, end, time_period,
-    #                           pds_members, pds_families, jotform_range, log)
+    #                           pds_members, pds_families, jotform_range_list, log)
 
 main()
