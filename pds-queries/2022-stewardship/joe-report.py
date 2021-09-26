@@ -129,9 +129,78 @@ def convert_2021_jotform(jotform):
 
 #---------------------------------------------------------------------------
 
-def pledge_comparison_report(this_year_data, last_year_data):
-    # Joe to fill in here
-    pass
+# Dictionary of totals to be modified by pledge_comparison_report() and then
+# accessed / computed upon when creating the CSV
+pledge_comparison = {
+    "cannot pledge" : { "households" : 0, "dollar impact" : 0, "total of pledges" : 0},
+    "reduced pledge" : { "households" : 0, "dollar impact" : 0, "total of pledges" : 0},
+    "no change" : { "households" : 0, "dollar impact" : 0, "total of pledges" : 0},
+    "new pledge" : { "households" : 0, "dollar impact" : 0, "total of pledges" : 0},
+    "increased pledge" : { "households" : 0, "dollar impact" : 0, "total of pledges" : 0}
+}
+
+# Converts the pledge_comparison dictionary filled by pledge_comparison_report()
+# into a CSV and does some computation on it.
+def pledge_report_csv(report_dict, pledge_sum, households):
+    filename = "pledge_report.csv"
+    with open(filename, "w") as csvfile:
+        fieldnames = ["Category", "# of Households", "% of Total Households",
+                  "Dollar Impact", "Pledge Total", "% of Total Pledge Sum"]
+        report_writer = csv.DictWriter(csvfile, fieldnames = fieldnames)
+        report_writer.writeheader()
+        for category in report_dict:
+            # Variables of stats for this specific category
+            cat_households = report_dict[category]["households"]
+            cat_households_percent = round((cat_households / households) * 100)
+            cat_dollar_impact = report_dict[category]["dollar impact"]
+            cat_pledge_sum = report_dict[category]["total of pledges"]
+            cat_pledge_percent = round((cat_pledge_sum / pledge_sum) * 100)
+            csv_dict = {
+                "Category" : category,
+                "# of Households" : cat_households,
+                "% of Total Households" : cat_households_percent,
+                "Dollar Impact" : cat_dollar_impact,
+                "Pledge Total" : cat_pledge_sum,
+                "% of Total Pledge Sum" : cat_pledge_percent
+            }
+            report_writer.writerow(csv_dict)
+    print(f"Wrote {filename}")
+
+# Compares the dictionaries of pledges from this year to that of last year, and
+# outputs a CSV showing a few statistics relating to which category the pledges
+# falls into (Can't, Reduced, No Change, New, Increased) and some relevant info
+# / analysis on totals and percentages.
+def pledge_comparison_report(this_year_pledges, last_year_pledges):
+    pledge_total = 0
+    households = len(this_year_pledges)
+    for fid in this_year_pledges:
+        current_pledge = this_year_pledges[fid]["pledge"]
+        pledge_total += current_pledge
+        # If a family is not found in last_year_pledges, then their FID is not a
+        # key, and a KeyError will be raised. This means that they are
+        # considered a new pledge. Since a previous pledge of 0 with a current
+        # non-zero pledge is also considered "new," then we'll just catch that
+        # case later and set the category there.
+        key = "pledge"
+        previous_pledge = 0
+        if fid in last_year_pledges and key in last_year_pledges[fid]:
+            previous_pledge = last_year_pledges[fid][key]
+        if this_year_pledges[fid]["participate"] == False:
+            category = "cannot pledge"
+            current_pledge = 0
+        elif current_pledge == previous_pledge:
+            category = "no change"
+        elif previous_pledge == 0 and current_pledge > 0:
+            category = "new pledge"
+        elif current_pledge > previous_pledge:
+            category = "increased pledge"
+        elif current_pledge < previous_pledge:
+            category = "reduced pledge"
+        dollar_impact = current_pledge - previous_pledge
+        pledge_comparison[category]["households"] += 1
+        pledge_comparison[category]["dollar impact"] += dollar_impact
+        pledge_comparison[category]["total of pledges"] += current_pledge
+    pledge_report_csv(pledge_comparison, pledge_total, households)
 
 #---------------------------------------------------------------------------
 
