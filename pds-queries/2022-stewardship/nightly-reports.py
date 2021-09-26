@@ -65,9 +65,9 @@ from constants import MAX_PDS_FAMILY_MEMBER_NUM
 
 ecc = '@epiphanycatholicchurch.org'
 
-# Comments report email
-comments_email_to = f'angie{ecc},mary{ecc},jeff@squyres.com'
-comments_email_subject = 'Comments report'
+# Comments and pledge analysis report email
+reports_email_to = f'angie{ecc},mary{ecc},jeff@squyres.com'
+reports_email_subject = 'Comments and pledge analysis reports'
 
 # Statistics report email
 statistics_email_to = f'sdreiss71@gmail.com,angie{ecc},mary{ecc},jeff@squyres.com'
@@ -80,7 +80,7 @@ pledge_email_subject = 'Pledge PDS CSV import file'
 
 # JMS for debugging/testing
 statistics_email_to = 'jeff@squyres.com'
-comments_email_to = statistics_email_to
+reports_email_to = statistics_email_to
 fid_participation_email_to = statistics_email_to
 pledge_email_to = statistics_email_to
 
@@ -316,7 +316,7 @@ def comments_to_xlsx(google, jotform_data, id_field, emails_field, name_field, e
             pledge_last_format = None
 
         if row[pledge_cur_label]:
-            pledge_cur = int(row[pledge_cur_label])
+            pledge_cur = helpers.jotform_text_to_int(row[pledge_cur_label])
             pledge_cur_format = money_format
         else:
             pledge_cur = 0
@@ -391,55 +391,7 @@ def comments_report(args, google, start, end, time_period, jotform_data, log):
                                         remove_local=True,
                                         log=log)
 
-    # Send the comments report email
-    body = list()
-    body.append(f"""<html>
-<body>
-<h2>{title} comments report</h2>
-
-<h3>Time period: {time_period}</h3>""")
-
-    if num_comments == 0:
-        body.append("<p>No comments submitted during this time period.</p>")
-    else:
-        url = 'https://docs.google.com/spreadsheets/d/{id}'.format(id=gsheet_id)
-        body.append(f"""<p><a href="{url}">Link to Google sheet containing comments for this timeframe</a>.</p>
-<p>There are {num_comments} comments in this report.</p>""")
-
-    body.append("""
-</body>
-</html>""")
-
-    to = comments_email_to
-    subject = '{subj} ({t})'.format(subj=comments_email_subject, t=time_period)
-    try:
-        log.info('Sending "{subject}" email to {to}'
-                 .format(subject=subject, to=to))
-        with smtplib.SMTP_SSL(host=smtp_server,
-                              local_hostname='epiphanycatholicchurch.org') as smtp:
-            msg = EmailMessage()
-            msg['Subject'] = subject
-            msg['From'] = smtp_from
-            msg['To'] = to
-            msg.set_content('\n'.join(body))
-            msg.replace_header('Content-Type', 'text/html')
-
-            # This assumes that the file has a single line in the format of username:password.
-            with open(args.smtp_auth_file) as f:
-                line = f.read()
-                smtp_username, smtp_password = line.split(':')
-
-            # Login; we can't rely on being IP whitelisted.
-            try:
-                smtp.login(smtp_username, smtp_password)
-            except Exception as e:
-                log.error(f'Error: failed to SMTP login: {e}')
-                exit(1)
-
-            smtp.send_message(msg)
-    except:
-        print("==== Error with {email}".format(email=to))
-        print(traceback.format_exc())
+    return gsheet_id
 
 ##############################################################################
 
@@ -520,8 +472,7 @@ def statistics_graph(pds_members, pds_families, jotform, log):
 
     #------------------------------------------------------------------------
 
-    def _compute(start, end, pds_members, pds_families,
-                 jotform, log):
+    def _compute(start, end, pds_members, pds_families, jotform, log):
         # Compute these values just in the date range:
         # - How many unique family submissions total?
 
@@ -622,7 +573,7 @@ def statistics_graph(pds_members, pds_families, jotform, log):
 
 #-----------------------------------------------------------------------------
 
-def statistics_report(args, end, pds_members, pds_families, jotform, log):
+def statistics_report(args, time_period, pds_members, pds_families, jotform, log):
     log.info("Composing statistics report...")
 
     #---------------------------------------------------------------
@@ -643,7 +594,7 @@ def statistics_report(args, end, pds_members, pds_families, jotform, log):
 <body>
 <h2>{title} statistics update</h2>
 
-<h3>Time period: through {end}</h3>
+<h3>Time period: {time_period}</h3>
 <ul>
 <li> Total number of active PDS Families in the parish: {data['num_active']:,d}</li>
 <br>
@@ -676,11 +627,9 @@ def statistics_report(args, end, pds_members, pds_families, jotform, log):
 </html>""")
 
     to = statistics_email_to
-    time_period = "through {end}".format(end=end)
-    subject = '{subj} ({t})'.format(subj=statistics_email_subject, t=time_period)
+    subject = f'{statistics_email_subject} ({time_period})'
     try:
-        log.info('Sending "{subject}" email to {to}'
-                 .format(subject=subject, to=to))
+        log.info(f'Sending "{subject}" email to {to}')
         with smtplib.SMTP_SSL(host=smtp_server,
                               local_hostname='epiphanycatholicchurch.org') as smtp:
             msg = EmailMessage()
@@ -715,13 +664,255 @@ def statistics_report(args, end, pds_members, pds_families, jotform, log):
 
 ##############################################################################
 
-def pledge_comparison_report(jotform_this_year, jotform_last_year, log):
-    # We have this year's de-duplicated data (jotform_all). We need to load the
-    # prior year's data. The process for loading the prior year's data is going
-    # to be different each year because the specific Jotform fields change every
-    # year.
+def pledge_comparison_report(google, jotform_this_year, jotform_last_year, log):
+    # Extract just 2 fields from the jotform data and return it in a
+    # dict indexed by fid.
+    def _simplify_jotform(jotform_data, participation_fieldname, pledge_fieldname, log):
+        out = dict()
+        for fid, data in jotform_data.items():
+            participate = True
+            if participation_fieldname and data[participation_fieldname].startswith("Because"):
+                participate = False
 
-    log.info("Pledge comparison report!")
+            pledge = 0
+            if participate:
+                pledge = helpers.jotform_text_to_int(data[pledge_fieldname])
+
+            out[fid] = {
+                'participate' : participate,
+                'pledge'      : pledge,
+            }
+
+        return out
+
+    # ------------------------------------------------------------------------
+
+    # Compares the dictionaries of pledges from this year to that of last year,
+    # and outputs a CSV showing a few statistics relating to which category the
+    # pledges falls into (Can't, Reduced, No Change, New, Increased) and some
+    # relevant info / analysis on totals and percentages.
+    def _compare(this_year_data, last_year_data, log):
+        out = dict()
+        for fid in this_year_data:
+            current_pledge = this_year_data[fid]["pledge"]
+
+            # If a fid in this year is not found in last year's data, then this is
+            # considered a new pledge.
+            key = "pledge"
+            previous_pledge = 0
+            if fid in last_year_data and key in last_year_data[fid]:
+                previous_pledge = last_year_data[fid][key]
+
+            if this_year_data[fid]["participate"] == False:
+                category = "Cannot pledge"
+                current_pledge = 0
+            elif current_pledge == previous_pledge:
+                category = "No change"
+            elif previous_pledge == 0 and current_pledge > 0:
+                category = "NEW pledge"
+            elif current_pledge > previous_pledge:
+                category = "Increased pledge"
+            elif current_pledge < previous_pledge:
+                category = "Reduced pledge"
+
+            dollar_impact = current_pledge - previous_pledge
+
+            if category not in out:
+                out[category] = {
+                    'households'       : 0,
+                    'dollar impact'    : 0,
+                    'total of pledges' : 0,
+                }
+
+            out[category]["households"] += 1
+            out[category]["dollar impact"] += dollar_impact
+            out[category]["total of pledges"] += current_pledge
+
+        return out
+
+    # ------------------------------------------------------------------------
+
+    def _make_xlsx(comparison, log):
+        workbook = Workbook()
+        sheet = workbook.active
+
+        comments_label    = "Comments"
+        pledge_last_label = f'CY{stewardship_year-1} pledge'
+        pledge_cur_label  = f'CY{stewardship_year} pledge'
+        amount_label      = f'CY{stewardship_year-1} gifts'
+
+        # Setup the title rows
+        # Title rows + set column widths
+        title_font   = Font(color='FFFF00')
+        title_fill   = PatternFill(fgColor='0000FF', fill_type='solid')
+        title_align  = Alignment(horizontal='center', wrap_text=True)
+
+        wrap_align   = Alignment(horizontal='general', wrap_text=True)
+        right_align  = Alignment(horizontal='right')
+
+        money_format = "$##,###,###,###"
+        percentage_format = "##.#"
+
+        xlsx_cols = dict();
+        def _add_col(name, width=10, format=None):
+            col             = len(xlsx_cols) + 1
+            xlsx_cols[name] = {'name' : name, 'format' : format,
+                               'column' : col, 'width' : width }
+
+        _add_col('Category', width=20)
+        _add_col('Number of Households')
+        _add_col('%-age of Total Submitted Households')
+        _add_col('Dollar Impact')
+        _add_col('Total of Pledges Submitted')
+        _add_col('%-age of Total Pledges Submitted')
+
+        # Make 2 rows of merged cells for wide titles
+        def _make_merged_title_row(row, value):
+            cell           = sheet.cell(row=row, column=1, value=value)
+            cell.fill      = title_fill
+            cell.font      = title_font
+            cell.alignment = title_align
+            end_col_char   = chr(ord('A') - 1 + len(xlsx_cols))
+            sheet.merge_cells(f'A{row}:{end_col_char}{row}')
+
+        _make_merged_title_row(row=1, value='eStewardship Pledge Analysis')
+        _make_merged_title_row(row=2, value='')
+
+        # Now add all the column titles
+        for data in xlsx_cols.values():
+            col            = data['column']
+            cell           = sheet.cell(row=3, column=col, value=data['name'])
+            cell.fill      = title_fill
+            cell.font      = title_font
+            cell.alignment = title_align
+
+            col_char = chr(ord('A') - 1 + col)
+            sheet.column_dimensions[col_char].width = data['width']
+
+        # Finally, fill in all the data rows.
+        # First, compute totals so that we can compute percentages.
+        total_households = 0
+        total_pledges    = 0
+        total_impact     = 0
+        for data in comparison.values():
+            total_households += data['households']
+            total_pledges    += data['total of pledges']
+            total_impact     += data['dollar impact']
+
+        def _fill(column, value, align=None, format=None):
+            cell = sheet.cell(row=xlsx_row, column=column, value=value)
+
+            want_format = True
+            if (type(value) is int or type(value) is float) and value == 0:
+                    want_format = False
+
+            if want_format:
+                if align:
+                    cell.alignment = align
+                if format:
+                    cell.number_format = format
+
+        xlsx_row = 4
+        for category, data in comparison.items():
+            _fill(1, category)
+            _fill(2, data['households'])
+            _fill(3, data['households'] / total_households * 100.0,
+                format=percentage_format)
+            _fill(4, data['dollar impact'],
+                format=money_format)
+            _fill(5, data['total of pledges'],
+                format=money_format)
+            _fill(6, data['total of pledges'] / total_pledges * 100.0,
+                format=percentage_format)
+
+            xlsx_row += 1
+
+        _fill(1, 'Totals', align=right_align)
+        _fill(2, total_households)
+        _fill(4, total_impact, format=money_format)
+        _fill(5, total_pledges, format=money_format)
+
+        return workbook
+
+    # ------------------------------------------------------------------------
+
+    # Make simplified data structures from the full jotform data.  These
+    # will be easier to compare.
+    this_year_data = _simplify_jotform(jotform_this_year,
+                                    'CY2022 participation', 'CY2022 pledge', log)
+    last_year_data = _simplify_jotform(jotform_last_year,
+                                    None, 'CY2021 pledge', log)
+
+    # Do the comparison
+    comparison = _compare(this_year_data, last_year_data, log)
+
+    # Make an XLSX report
+    workbook = _make_xlsx(comparison, log)
+
+    # Upload the XLS to google
+    now      = datetime.now()
+    filename = f'{now.year:04}-{now.month:02}-{now.day:02} Pledge analysis.xlsx'
+    gsheet_id, _ = upload_xlsx_to_gsheet(google,
+                    google_folder_id=upload_team_drive_folder_id,
+                    filename=filename,
+                    workbook=workbook,
+                    remove_local=True,
+                    log=log)
+
+    return gsheet_id
+
+##############################################################################
+
+def send_reports_email(time_period, comments_gfile, pledge_analysis_gfile, args, log):
+    # Send the comments report email
+    body = list()
+    body.append(f"""<html>
+<body>
+<h2>{title} comments and pledge analysis reports</h2>
+
+<h3>Time period: {time_period}</h3>""")
+
+    if comments_gfile is None:
+        body.append("<p>No comments submitted during this time period.</p>")
+    else:
+        url = 'https://docs.google.com/spreadsheets/d/{id}'.format(id=comments_gfile)
+        body.append(f'<p><a href="{url}">Link to Google sheet containing comments for this timeframe</a>.</p>')
+
+    url = 'https://docs.google.com/spreadsheets/d/{id}'.format(id=pledge_analysis_gfile)
+    body.append(f'''<p><a href="{url}">Link to Google sheet containing pledge analysis.</a>.</p>
+</body>
+</html>''')
+
+    to = reports_email_to
+    subject = '{subj} ({t})'.format(subj=reports_email_subject, t=time_period)
+    try:
+        log.info('Sending "{subject}" email to {to}'
+                 .format(subject=subject, to=to))
+        with smtplib.SMTP_SSL(host=smtp_server,
+                              local_hostname='epiphanycatholicchurch.org') as smtp:
+            msg = EmailMessage()
+            msg['Subject'] = subject
+            msg['From'] = smtp_from
+            msg['To'] = to
+            msg.set_content('\n'.join(body))
+            msg.replace_header('Content-Type', 'text/html')
+
+            # This assumes that the file has a single line in the format of username:password.
+            with open(args.smtp_auth_file) as f:
+                line = f.read()
+                smtp_username, smtp_password = line.split(':')
+
+            # Login; we can't rely on being IP whitelisted.
+            try:
+                smtp.login(smtp_username, smtp_password)
+            except Exception as e:
+                log.error(f'Error: failed to SMTP login: {e}')
+                exit(1)
+
+            smtp.send_message(msg)
+    except:
+        print("==== Error with {email}".format(email=to))
+        print(traceback.format_exc())
 
 ##############################################################################
 
@@ -1376,7 +1567,7 @@ def _export_gsheet_to_csv(service, start, end, google_sheet_id, fieldnames, log)
 #-----------------------------------------------------------------------------
 
 def read_jotform_gsheet(google, start, end, fieldnames, gfile_id, log):
-    log.info(f"Downloading Jotform raw data ({jotform_gsheet_gfile_id})...")
+    log.info(f"Downloading Jotform raw data ({gfile_id})...")
 
     # Some of the field names will be lists.  In those cases, use the first
     # field name in the list.
@@ -1473,7 +1664,7 @@ def main():
 
         time_period = '{start} - {end}'.format(start=start, end=end)
 
-    log.info("Comments for: {tp}".format(tp=time_period))
+    log.info("Time period: {tp}".format(tp=time_period))
 
     #---------------------------------------------------------------
 
@@ -1499,6 +1690,7 @@ def main():
     #---------------------------------------------------------------
 
     # Load all the results
+    log.info(f"Reading Jotform {stewardship_year} data...")
     jotform_all_list, jotform_all_dict = read_jotform_gsheet(google,
                                     start=None, end=None,
                                     fieldnames=jotform_gsheet_columns,
@@ -1518,6 +1710,7 @@ def main():
     #---------------------------------------------------------------
 
     import constants_2021
+    log.info(f"Reading Jotform {constants_2021.stewardship_year} data...")
     _, jotform_last_year = read_jotform_gsheet(google, start=None, end=None,
                             fieldnames=constants_2021.jotform_gsheet_columns,
                             gfile_id=constants_2021.jotform_gsheet_gfile_id,
@@ -1529,12 +1722,17 @@ def main():
 
     # These two reports were run via cron at 12:07am on Mon-Fri
     # mornings.
-    #comments_report(args, google, start, end, time_period,
-    #                jotform_range_list, log)
-    #statistics_report(args, end, pds_members, pds_families,
-    #                  jotform_all_list, log)
+    statistics_report(args, time_period, pds_members, pds_families,
+                      jotform_all_list, log)
 
-    pledge_comparison_report(jotform_all_dict, jotform_last_year, log)
+    comments_gfile = None
+    comments_gfile = comments_report(args, google, start, end, time_period,
+                    jotform_range_list, log)
+
+    pledge_gfile = pledge_comparison_report(google, jotform_all_dict,
+                                        jotform_last_year, log)
+
+    send_reports_email(time_period, comments_gfile, pledge_gfile, args, log)
 
     # These reports were uncommented and run by hand upon demand.
     #family_pledge_csv_report(args, google, pds_families, jotform_all_list, log)

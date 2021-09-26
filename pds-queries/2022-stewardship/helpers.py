@@ -101,6 +101,31 @@ def jotform_date_to_datetime(d):
 
 #--------------------------------------------------------------------------
 
+def jotform_text_to_int(val):
+    val = val.strip()
+    if val == '':
+        return 0
+
+    # Someone actually put in a range.
+    # Just take the lower value.
+    if '-' in val:
+        val = val[0 : val.index('-')]
+
+    # Strip commas
+    if ',' in val:
+        val = val.replace(',', '')
+
+    # If they put in a floating point value, convert that.
+    # Otherwise straight convert as int.
+    if '.' in val:
+        val = int(float(val))
+    else:
+        val = int(val)
+
+    return val
+
+#--------------------------------------------------------------------------
+
 def url_escape(s):
     return s.replace('\"', '\\"')
 
