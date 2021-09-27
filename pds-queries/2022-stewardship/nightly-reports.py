@@ -754,7 +754,7 @@ def pledge_comparison_report(google, jotform_this_year, jotform_last_year, log):
         percentage_format = "##.#"
 
         xlsx_cols = dict();
-        def _add_col(name, width=10, format=None):
+        def _add_col(name, width=15, format=None):
             col             = len(xlsx_cols) + 1
             xlsx_cols[name] = {'name' : name, 'format' : format,
                                'column' : col, 'width' : width }
