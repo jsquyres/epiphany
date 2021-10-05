@@ -43,7 +43,7 @@ guser_cred_file = 'user-credentials.json'
 
 # Copied from the Google Spreadsheet where Jotform is writing its
 # results
-jotform_gsheet_gfile_id = '1v8nDC2a6685WPgQbhxl1uuOXgrzii3gv5qOFx5epeQQ'
+jotform_gsheet_gfile_id = '1kiMzfBiJBd-mqrD5yDTxC0RhvKYsul8xaAirYUJwTwE'
 
 # Team Drive folder where to upload the CSV/spreadsheet comparison
 # output files
