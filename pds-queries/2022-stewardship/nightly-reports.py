@@ -704,6 +704,9 @@ def pledge_comparison_report(google, jotform_this_year, jotform_last_year, log):
             # If the family is recorded as having a pledge of 0 OR 1 last year,
             # then they did not have a pledge last year.
             elif previous_pledge == 0 or previous_pledge == 1:
+                # Set their previous pledge to zero to accurately reflect how
+                # much they *actually* pledged last year.
+                previous_pledge = 0
                 if current_pledge == 0:
                     category = "No pledge both years"
                 # If the family didn't pledge last year, but pledged this year,
