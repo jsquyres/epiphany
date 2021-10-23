@@ -103,6 +103,7 @@ def jotform_date_to_datetime(d):
 
 def jotform_text_to_int(val):
     val = val.strip()
+    val = val.strip('$')
     if val == '':
         return 0
 
