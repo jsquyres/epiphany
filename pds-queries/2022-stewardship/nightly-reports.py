@@ -667,20 +667,23 @@ def statistics_report(args, time_period, pds_members, pds_families, jotform, log
 def pledge_comparison_report(google, jotform_this_year, jotform_last_year, log):
     # Extract just 2 fields from the jotform data and return it in a
     # dict indexed by fid.
-    def _simplify_jotform(jotform_data, participation_fieldname, pledge_fieldname, log):
+    def _simplify_jotform(jotform_data, participation_fieldname,
+                          this_year_pledge_fieldname,
+                          last_year_pledge_fieldname, log):
         out = dict()
         for fid, data in jotform_data.items():
             participate = True
             if participation_fieldname and data[participation_fieldname].startswith("Because"):
                 participate = False
 
-            pledge = 0
+            current_pledge = 0
             if participate:
-                pledge = helpers.jotform_text_to_int(data[pledge_fieldname])
-
+                current_pledge = helpers.jotform_text_to_int(data[this_year_pledge_fieldname])
+            previous_pledge = helpers.jotform_text_to_int(data[last_year_pledge_fieldname])
             out[fid] = {
-                'participate' : participate,
-                'pledge'      : pledge,
+                'participate'    : participate,
+                'current pledge' : current_pledge,
+                'previous pledge': previous_pledge,
             }
 
         return out
@@ -689,27 +692,26 @@ def pledge_comparison_report(google, jotform_this_year, jotform_last_year, log):
 
     # Compares the dictionaries of pledges from this year to that of last year,
     # and outputs a CSV showing a few statistics relating to which category the
-    # pledges falls into (Can't, Reduced, No Change, New, Increased) and some
-    # relevant info / analysis on totals and percentages.
-    def _compare(this_year_data, last_year_data, log):
+    # pledges falls into (Can't, Reduced, No Change, New, Increased, No Pledge
+    # Both Years) and some relevant info / analysis on totals and percentages.
+    def _compare(this_year_data, log):
         out = dict()
         for fid in this_year_data:
-            current_pledge = this_year_data[fid]["pledge"]
-
-            # If a fid in this year is not found in last year's data, then this is
-            # considered a new pledge.
-            key = "pledge"
-            previous_pledge = 0
-            if fid in last_year_data and key in last_year_data[fid]:
-                previous_pledge = last_year_data[fid][key]
-
+            current_pledge = this_year_data[fid]["current pledge"]
+            previous_pledge = this_year_data[fid]["previous pledge"]
             if this_year_data[fid]["participate"] == False:
                 category = "Cannot pledge"
-                current_pledge = 0
+            # If the family is recorded as having a pledge of 0 OR 1 last year,
+            # then they did not have a pledge last year.
+            elif previous_pledge == 0 or previous_pledge == 1:
+                if current_pledge == 0:
+                    category = "No pledge both years"
+                # If the family didn't pledge last year, but pledged this year,
+                # it's a new pledge.
+                elif current_pledge > 0:
+                    category = "NEW pledge"
             elif current_pledge == previous_pledge:
                 category = "No change"
-            elif previous_pledge == 0 and current_pledge > 0:
-                category = "NEW pledge"
             elif current_pledge > previous_pledge:
                 category = "Increased pledge"
             elif current_pledge < previous_pledge:
@@ -836,15 +838,15 @@ def pledge_comparison_report(google, jotform_this_year, jotform_last_year, log):
 
     # ------------------------------------------------------------------------
 
-    # Make simplified data structures from the full jotform data.  These
-    # will be easier to compare.
+    # Make simplified data structures from the full jotform data.  These will be
+    # easier to compare. We use this year's jotform for last year's data because
+    # it (this year's jotform) has pre-filled info on how much the family gave
+    # last year.
     this_year_data = _simplify_jotform(jotform_this_year,
-                                    'CY2022 participation', 'CY2022 pledge', log)
-    last_year_data = _simplify_jotform(jotform_last_year,
-                                    None, 'CY2021 pledge', log)
+                                       'CY2022 participation', 'CY2022 pledge', 'CY2021 pledge', log)
 
     # Do the comparison
-    comparison = _compare(this_year_data, last_year_data, log)
+    comparison = _compare(this_year_data, log)
 
     # Make an XLSX report
     workbook = _make_xlsx(comparison, log)
