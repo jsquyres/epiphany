@@ -39,33 +39,53 @@ except Exception as e:
 import ECCEmailer
 import ECCUploader
 
-default_app_json                    = 'client_id.json'
-default_user_json                   = 'user_credentials.json'
-default_google_team_drive_folder_id = '1SYDgNiGgRGTZ8EsmRxsg3PE6sL4GzJTE'
-default_smtp_auth                   = 'smtp_auth.txt'
-default_recipient                   = 'harrison@epiphanycatholicchurch.org'
-default_client                      = 'no-reply@epiphanycatholicchurch.org'
+default_google_shared_drive_folder_id = '1zPjpPSFiNttptZ_TEi6FCVOzaBi7O5dD'
+default_smtp_sender                   = 'no-reply@epiphanycatholicchurch.org'
 
 ###########################################################
 
-def find_relevant_datetimes(args_date):
-    if not isinstance(args_date, datetime.datetime):
-        end_date = datetime.datetime.fromisoformat(args_date)
-    else: end_date = args_date
-    month_start = end_date.replace(day=1)                                           # Monthly defaults to 1st of current month
-    quarter_start = month_start                                                     # Quarter and Fiscal default to monthly (so they won't run)
-    fiscal_start = month_start                                
-    if end_date.day == 1:
-        month_start = end_date.replace(month=end_date.month-1)                      # On the 1st, Monthly starts at 1st of previous month
-        if end_date.month in [1,4,7,10]:
-            quarter_start = month_start.replace(month=month_start.month-3)          # Quarterly reports generated on Oct/Jan/Apr/Jul 1st
-            fiscal_start = month_start.replace(month = 7)
-            if end_date.month in [1,4,7]:
-                fiscal_start = fiscal_start.replace(year=fiscal_start.year-1)       # Jan/April/July FY reports start in previous calendar year
-                if end_date.month == 1:
-                    quarter_start = quarter_start.replace(year=quarter_start.year-1)# Jan quarterly report needs data from previous Oct
+def find_relevant_datetimes(args):
+    # Monthly defaults to 1st of current month
+    month_start = args.last.replace(day=1)
 
-    return end_date, month_start, quarter_start, fiscal_start
+    # Quarter and Fiscal default to monthly (so they won't run)
+    quarter_start = month_start
+
+    fiscal_start = month_start
+    if args.last.day == 1:
+        # On the 1st, Monthly starts at 1st of previous month
+        # JMS: This doesn't work... what if month is 1?
+        month_start = args.last.replace(month=args.last.month-1)
+
+        if args.last.month in [1,4,7,10]:
+            # Quarterly reports generated on Oct/Jan/Apr/Jul 1st
+            # JMS This doesn't work...
+            quarter_start = month_start.replace(month=month_start.month-3)
+            fiscal_start = month_start.replace(month = 7)
+
+            if args.last.month in [1,4,7]:
+                # Jan/April/July FY reports start in previous calendar year
+                fiscal_start = fiscal_start.replace(year=fiscal_start.year-1)
+
+                if args.last.month == 1:
+                    # Jan quarterly report needs data from previous Oct
+                    quarter_start = quarter_start.replace(year=quarter_start.year-1)
+
+
+
+
+    # JMS Previous commit had an --end-date CLI option and everything
+    # derived from that.  But it ignored --first and --last.  Also,
+    # the date computations above aren't quite right -- need to use
+    # time deltas properly.
+    #
+    # Not quite sure how to fix all of this yet, but I'm just
+    # committing what I've got for now...
+
+
+
+
+    return args.first, args.last, month_start, quarter_start, fiscal_start
 
 def setup_cli_args():
     tools.argparser.add_argument('--xlsx',
@@ -78,9 +98,6 @@ def setup_cli_args():
                         help='First local timestamp "yyyy-mm-dd[ hh:mm:ss]"')
     tools.argparser.add_argument('--last',
                         help='Last local timestamp "yyyy-mm-dd[ hh:mm:ss]"')
-    tools.argparser.add_argument('--end-date',
-                        default=datetime.datetime.today(),
-                        help='Date of generated report')
 
     tools.argparser.add_argument('--logfile',
                         default=None,
@@ -98,24 +115,27 @@ def setup_cli_args():
                         default=False,
                         action='store_true',
                         help='Enable extra debugging')
+
     tools.argparser.add_argument(f'--app-id',
-                        default=default_app_json,
+                        default=None,
                         help='Filename containing Google application credentials')
-    tools.argparser.add_argument(f'--user_credentials',
-                        default=default_user_json,
+    tools.argparser.add_argument(f'--user-credentials',
+                        default=None,
                         help='Filename containing Google user credentials')
-    tools.argparser.add_argument(f'--drive_folder',
-                        default=default_google_team_drive_folder_id,
+    tools.argparser.add_argument(f'--drive-folder',
+                        #default=default_google_shared_drive_folder_id,
+                        default=None,
                         help='Destination Google Drive folder for uploads')
+
     tools.argparser.add_argument(f'--smtp-auth-file',
-                        default=default_smtp_auth,
+                        default=None,
                         help='File containing SMTP AUTH username:password for {smtp_server}')
     tools.argparser.add_argument(f'--recipient',
-                        default=default_recipient,
+                        default=None,
                         help='Valid email address of recipient')
-    tools.argparser.add_argument(f'--client',
+    tools.argparser.add_argument(f'--sender',
                         help='Sender address',
-                        default=default_client)
+                        default=default_smtp_sender)
     args = tools.argparser.parse_args()
 
     # Sanity check
@@ -123,16 +143,29 @@ def setup_cli_args():
         print(f"ERROR: SQLite3 database does not exist {args.db}")
         exit(1)
 
+    if args.smtp_auth_file or args.recipient:
+        if args.smtp_auth_file is None or \
+           args.recipient is None:
+            print("If using SMTP, must specify both --smtp-auth-file and --recipient")
+            exit(1)
+
+    if args.app_id or args.user_credentials or args.drive_folder:
+        if args.app_id is None or \
+           args.user_credentials is None or \
+           args.drive_folder is None:
+            print("If uploading to Google Drive, must specify --app-id, --user-credentials, and --drive-folder")
+            exit(1)
+
     # Convert the string timestamp to a Python datetime in GMT
     def _convert_timestamp(timestamp):
         # The timestamp must be of one of the following forms:
         # yyyy-mm-dd
         # yyyy-mm-dd hh:mm:ss
-        if re.match('\d\d\d\d-\d\d-\d\d$', timestamp):
+        if re.match(r'\d\d\d\d-\d\d-\d\d$', timestamp):
             ts = datetime.datetime.strptime(timestamp,
                                             "%Y-%m-%d")
 
-        elif re.match('\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d$', timestamp):
+        elif re.match(r'\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d$', timestamp):
             ts = datetime.datetime.strptime(timestamp,
                                             "%Y-%m-%d %H:%M:%S")
 
@@ -462,7 +495,7 @@ def main():
 
     conn, fields = open_db(log, args.db)
 
-    last, first_month, first_quarter, first_year = find_relevant_datetimes(args.end_date)
+    first, last, first_month, first_quarter, first_year = find_relevant_datetimes(args)
 
     # Find the earliest timestamp in the database that is greater than or equal
     # to the timestamps that were specified on the command line.
@@ -473,15 +506,16 @@ def main():
             exit(1)
         return ts
 
-    timestamp_month   = _check('month', first_month)
-    timestamp_last    = _check('last', last)
+    timestamp_month = _check('month', first_month)
+    timestamp_last  = _check('last', last)
 
     reports={}
 
     depts_last  = fetch_depts_at_timestamp(log, conn, timestamp_last)
 
     reports['month'] = {
-        'filename': generate_report(log, conn, timestamp_month, timestamp_last, depts_last, fields, args.end_date + ' monthly.xlsx'),
+        'filename': generate_report(log, conn, timestamp_month, timestamp_last,
+                                    depts_last, fields, args.end_date + ' monthly.xlsx'),
         'type': 'xlsx',
     }
 
@@ -489,49 +523,55 @@ def main():
         timestamp_quarter = _check('quarter', first_quarter)
         quarterly_label = args.date + ' quarterly report.xlsx'
         reports['quarter'] = {
-            'filename': generate_report(log, conn, timestamp_quarter, timestamp_last, depts_last, fields, args.end_date + ' quarterly.xlsx'),
+            'filename': generate_report(log, conn, timestamp_quarter, timestamp_last,
+                                        depts_last, fields, args.end_date + ' quarterly.xlsx'),
             'type': 'xlsx',
         }
 
     if first_year != first_month:
         timestamp_year = _check('year', first_year)
         reports['year'] = {
-            'filename': generate_report(log, conn, timestamp_year, timestamp_last, depts_last, fields, args.end_date + ' yearly.xlsx'),
+            'filename': generate_report(log, conn, timestamp_year, timestamp_last,
+                                        depts_last, fields, args.end_date + ' yearly.xlsx'),
             'type': 'xlsx',
         }
-        
 
     conn.close()
-    body = f'''<h1>Ricoh Reports</h1>
+
+    # Are we uploading to Google?
+    if args.app_id:
+        service_drive = ECCUploader.setup_services(args.app_id, args.user_credentials, log)
+        ECCUploader.verify_target_google_folder(service_drive, args.drive_folder, log)
+
+        # Upload the report files to the target ID folder
+        # This script creates an xlsx, but we want a Google sheet on Drive, so pass
+        # 'sheet' subtype rather than 'xlsx' so Google converts it.
+        for report in reports.values():
+            log.info(f"Uploading file {report}")
+            ECCUploader.upload_to_google(service_drive, report['filename'], 'sheet',
+                                         args.drive_folder, log)
+
+    log.debug(f'Reports is: {reports.values()}')
+
+    # Are we sending an email?
+    if args.smtp_auth_file:
+        body = f'''<h1>Ricoh Reports</h1>
 
 <p>The monthly Ricoh report from {args.end_date} is attached'''
 
-    if first_quarter != first_month:
-        body = body + ''', along with the quarterly report'''
-    if first_year != first_month:
-        body = body + ''' and the yearly report'''
+        if first_quarter != first_month:
+            body = body + ''', along with the quarterly report'''
+        if first_year != first_month:
+            body = body + ''' and the yearly report'''
 
-    body = body + '''.</p>
+        body = body + '''.</p>
 
 <p>Your friendly server,<br />
-Myrador</p>'''
-    bodytype = 'html'
+Ralph</p>'''
+        bodytype = 'html'
 
-    service_drive = ECCUploader.setup_services(args.app_id, args.user_credentials, log)
-
-    ECCUploader.verify_target_google_folder(service_drive, args.drive_folder, log)
-
-    # Upload the report files to the target ID folder
-    # This script creates an xlsx, but we want a Google sheet on Drive, so pass
-    # 'sheet' subtype rather than 'xlsx' so Google converts it.
-    for report in reports.values():
-        log.info(f"Uploading file {report}")
-        ECCUploader.upload_to_google(service_drive, report['filename'], 'sheet',
-                         args.drive_folder, log)
-
-    subject = f'{args.end_date} Ricoh Reports'
-    log.debug(f'Reports is: {reports.values()}')
-    ECCEmailer.send_email(body, bodytype, reports, args.smtp_auth_file, args.recipient,
-                          subject, args.client, log)
+        subject = f'{args.end_date} Ricoh Reports'
+        ECCEmailer.send_email(body, bodytype, reports, args.smtp_auth_file, args.recipient,
+                              subject, args.sender, log)
 
 main()
