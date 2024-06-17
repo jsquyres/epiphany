@@ -1,23 +1,5 @@
 #!/usr/bin/env python3
 
-"""Script to iterate through Member Workgroups from ParishSoft
-Family Suite and sync the information with a Constant Contact list
-
- - Use hard-coded lists of Member Workgroups and Constant Contact lists
- - Be sure that the name of the Member Workgroup matches the list exactly
- - For each:
- 	- Find all PS Members that have a given Member WorkGroup
- 	- Retrieve the relevant list from Constant Contact APIs
- 	- Compare the list and workgroup:
- 		- Find which PS members should be added to the list
- 		- Find which members should be removed from the list
- 		- Find which list members need their contact information changed
-
-Make sure you install the PIP modules in requirements.txt:
-	
-	pip install -r requirements.txt
-"""
-
 import os
 import re
 import sys
@@ -27,10 +9,13 @@ import time
 import logging
 import httplib2
 import logging.handlers
+import datetime
+import requests
+import copy
 
 # We assume that there is a "ecc-python-modules" sym link in this
 # directory that points to the directory with ECC.py and friends.
-moddir = os.path.join(os.getcwd(), 'ecc-python-modules')
+moddir = '../../../python'
 if not os.path.exists(moddir):
     print("ERROR: Could not find the ecc-python-modules directory.")
     print("ERROR: Please make a ecc-python-modules sym link and run again.")
@@ -39,6 +24,7 @@ sys.path.insert(0, moddir)
 
 import ECC
 import ParishSoftv2 as ParishSoft
+import ConstantContact as CC
 
 from oauth2client import tools
 
@@ -50,211 +36,336 @@ from pprint import pformat
 args = None
 log = None
 
-##
-## Gets the synchronization pairs
-##
-## :returns:   Pairs of workgroups and contact lists
-## :rtype:     List of Tuples
-##
+####################################################################
 
-def get_synchronizations():
-	ecc = '@epiphanycatholicchurch.org'
+def get_synchronizations(cc_lists, ps_member_workgroups,
+                         ps_families, ps_members, log):
+    ecc = '@epiphanycatholicchurch.org'
 
-	synchronizations = [
-		{
-			'workgroups' : [''],
-			'cclist'	 : f'',
-			'notify'	 : f'',
-		},
-	]
+    synchronizations = [
+        {
+            'source ps member wg' : 'Daily Gospel Reflections',
+            'target cc list'      : 'SYNC Daily Gospel Reflections',
+            'notify'              : f'ps-constantcontact-sync{ecc}',
+        },
+        {
+            'source function'     : frtoan_letter_members_fn,
+            'target cc list'      : 'SYNC Fr. Toan initial letter',
+            'notify'              : f'ps-constantcontact-sync{ecc}',
+        },
+    ]
 
-	return synchronizations
+    #----------------------
+    # Resolve the sources into lists of PS Members and the targets
+    # into CC lists
 
-##
-## Compares the Member Workgroup to the Constant Contact list.
-## Does not take any actions yet.
-## 
-## :returns:  The actions to take
-## :rtype:	  List of Tuples
-##
+    def _resolve_ps_member_workgroup(sync):
+        key = 'source ps member wg'
+        if key not in sync:
+            return
 
-def compute_sync(sync, ps_members, list_members, log=None):
-	actions = list()
+        for wg in ps_member_workgroups.values():
+            if wg['name'] == sync[key]:
+                members = dict()
+                for item in wg['membership']:
+                    duid = item['py member duid']
+                    members[duid] = ps_members[duid]
 
-	for pm in ps_members:
-		found_in_cc_list = False
-		for lm in list_members:
-			if (pm['email'] == lm['email']):
-				# CASE: Member exits in Workgroup and in C.C.
-				# We're happy with these cases.
-				found_in_cc_list = True
-				lm['sync_found'] = True
+                log.debug(f'Found: PS Member Workgroup named "{sync[key]}" with {len(members)} PS Members')
 
-			if not found_in_cc_list:
-				# CASE: Member exists in Workgroup but not in
-				# Constant Contact. Must be added to C.C.
-				actions.append({
-						'action'	: 'add',
-						'email'		: pm['email'],
-				})
+                sync['SOURCE PS MEMBERS'] = members
+                return
 
-	for lm in list_members:
-		if 'sync_found' in lm and lm['sync_found']:
-			continue
+        # If we got here, we didn't find it
+        log.error('Did not find a ParishSoft Member Workgroup named "{sync[key]}"')
+        log.error("Aborting in despair")
+        exit(1)
 
-		actions.append({
-			'action'	: 'delete',
-			'email'		: lm['email'],
-		})
+    def _resolve_python_function(sync):
+        key = 'source function'
+        if key not in sync:
+            return
 
-	if len(actions) > 0:
-		log.info(f'Actions for {sync['cclist']}')
-		log.info(pformat(actions, depth=3))
+        members = sync['source function'](ps_families, ps_members, log)
+        log.debug(f"Invoked Python function for source PS members, got {len(members)} PS Members")
+        sync['SOURCE PS MEMBERS'] = members
 
-	return actions
+    def _resolve_cc_list(sync):
+        key = 'target cc list'
+        if key not in sync:
+            log.error("Did not find \"{key}\" in synchronization")
+            log.error(pformat(sync))
+            log.error("Aborting in despair")
+            exit(1)
 
-##
-## Synchronizes the list based on the computed actions
-##
-## :param      args:     The arguments
-## :param      sync:     The synchronized tuples
-## :param      service:  The service
-## :param      actions:  The actions
-## :param      log:      The log
-##
+        found = False
+        for l in cc_lists:
+            if l['name'] == sync[key]:
+                log.debug(f'Found: CC list named "{sync[key]}"')
+                log.debug(pformat(l))
+                sync[f'{key} data'] = l
+                found = True
+                break
 
-def do_sync(args, sync, service, actions, log=None):
+        if not found:
+            log.error('Did not find a Constant Conact List named "{sync[key]}"')
+            log.error("Aborting in despair")
+            exit(1)
 
-	log.info(f"Synchronizing workgroups: {sync['workgroups']}, list: {sync['cclist']}")
+    #----------------------
 
-	# Process each action
-	changes = list()
-	for action in actions:
-		msg = None
+    for sync in synchronizations:
+        log.debug(f'Resolving synchronization: {sync}')
+        _resolve_ps_member_workgroup(sync)
+        _resolve_python_function(sync)
+        _resolve_cc_list(sync)
 
-		if action['action'] == 'add'
-			msg = _sync_add(args, sync, service=service, action=action, email=action['email'], log=log)
-
-		elif action['action'] == 'delete':
-			msg = _sync_delete(args, sync, service=service, action=action, email=action['email'], log=log)
-
-		else:
-			log.error(f'Unknown action: {action['action']} -- PS Member {action['email']} (skipped)')
-
-		if msg and not args.dry_run:
-			email = action['email']
-			i 	  = len(changes) + 1
-			changes.append(f"<tr>\n<td>{i}.</td>\n<td>{mem_names}</td>\n<td>{action['email']}</td>\n<td>{msg}</td>\n</tr>")
-
-	if len(changes) > 0 and not args.dry_run:
-		rationale = list()
-
-		subject = 'Update to Constant Contact List for '
-		for k in sync['workgroups']:
-			subject = subject + ', ' + k
-			rationale.append(f'<li> Members with the "{k}" keyword</li>')
-
-
-        style = r'''table { border-collapse: collapse; }
-th, td {
-    text-align: left;
-    padding: 8px;
-    border-bottom: 1px solid #ddd;
-}
-tr:nth-child(even) { background-color: #f2f2f2; }'''
-
-        changes = '\n'.join(changes)
-        rationale = '\n'.join(rationale)
-        body = f"""<html>
-<head>
-<style>
-{style}
-</style>
-</head>
-<body>
-<p>The following changes were made to the Constant Contact list {sync['cclist']}:</p>
-
-<p><table border=0>
-<tr>
-<th>&nbsp;</th>
-<th>Name</th>
-<th>Email address</th>
-<th>Action</th>
-</tr>
-{changes}
-</table></p>
-
-<p>These email addresses were obtained from PS:</p>
-
-<p><ol>
-{rationale}
-</ol></p>
-</body>
-</html>
-"""
-
-		# Send the email
-		ECC.send_email(to_addr=sync['notify'], subject=subject, body=body,
-			content_type='text/html', log=log)
-
-
-
-@retry.Retry(predicate=Google.retry_errors)
-def _sync_add(args, sync, service, action, name, log=None):
-	email = action['email']
-	if log:
-		log.info(f'Adding PS Member {name} ({email}) to Constant Contact list')
-
-	try:
-		if not args.dry_run:
-			service.members().insert
+    return synchronizations
 
 ####################################################################
-#
-# Setup functions
-#
+
+def frtoan_letter_members_fn(members, families, log):
+    log.debug("IN FR TOAN LETTER MEMBER FN")
+    return dict()
+
+####################################################################
+
+def set_contact_ps_member_duids(cc_contact, cc_client_id, cc_access_token, log):
+    log.info("Setting Contact PS Member DUID custom field values")
+
+    uuid = None
+    for field in cc_contact_custom_fields:
+        if field['name'] == 'ps_member_duids':
+            uuid = field['custom_field_id']
+
+    if uuid is None:
+        log.error("Unable to find ps_member_duids contact custom field")
+        log.error("Aborting in despair")
+        exit(1)
+
+    # Find all PS Member DUIDs for each contact
+    for contact in cc_contacts:
+        duids = list()
+        for duid, member in members.items():
+            email = member['emailAddress']
+
+            if email == contact['email_address']['address']:
+                duids.append(duid)
+
+        # If we found DUIDs, update the contact via the CC API
+        if len(duids) > 0:
+            str_duids = [ str(duid) for duid in sorted(duids) ]
+            contact['custom_fields'] = [
+                {
+                    'custom_field_id' : uuid,
+                    'value' : ','.join(str_duids),
+                },
+            ]
+            CC.update_contact(contact, cc_client_id, cc_access_token, log)
+
+####################################################################
+
+def delete_contacts_without_ps_duids(contacts, client_id, access_token, log):
+    log.info("Deleting CC contacts that have no matching PS Member")
+
+    key = 'PS MEMBER DUIDS'
+
+    contacts_to_delete = [ contact for contact in contacts
+                           if key not in contact ]
+    # Don't actually delete contacts from CC until all contacts are
+    # under Python control
+    log.debug(f"Deleting {len(contacts_to_delete)} CC contacts with no PS Member DUIDs")
+    log.warning(f"JMS STILL TO WRITE: use CC API to delete contacts with no DUIDs")
+
+    contacts_to_save = [ contact for contact in contacts if key in contact ]
+    log.debug(f"Keep {len(contacts_to_save)} CC contacts with PS Member DUIDs")
+    return contacts_to_save
+
+####################################################################
+
+def update_contacts_from_ps_members(contacts, client_id, access_token, log):
+    log.info("Looking for CC Contacts that need to be updated from PS Member data...")
+
+    # First, look for an update in the email address.  This can get
+    # messy: if a contact has multiple DUIDs and only some of them
+    # have updated email addresses, we may have to create some new
+    # contacts.
+
+    # Take the simple case first: this contact has a single
+    # corresponding PS Member.
+    key = 'PS MEMBERS'
+    for contact in contacts:
+        if len(contact[key]) != 1:
+            continue
+
+        changes = list()
+
+        # Check to see if we need to update the contact email address
+        member = contact[key][0]
+
+
+        if member['emailAddress'] is None:
+            log.error(f'Contact somehow has a PS member email address of NONE')
+            log.error(pformat(contact))
+            log.error('Aborting in despair')
+            exit(1)
+
+
+
+        email = member['emailAddress'].lower()
+        if contact['email_address']['address'] != email:
+            contact['email_address']['address'] = email
+            changes.append(f"email address: {contact['email_address']['address']}")
+
+        ps_first = ParishSoft.get_member_preferred_first(member)
+        if contact['first_name'] != ps_first:
+            contact['first_name'] = ps_first
+            changes.append(f"first name: {contact['first_name']}")
+
+        ps_last = member['lastName']
+        if contact['last_name'] != ps_last:
+            contact['last_name'] = ps_last
+            changes.append(f"last name: {contact['last_name']}")
+
+        if len(changes) > 0:
+            log.info(f'Updating Contact for PS Member {member["py friendly name FL"]} (DUID {member["memberDUID"]}): {changes}')
+            CC.update_contact(contact, client_id, access_token, log)
+
+
+
+
+
+
+
+    # JMS STILL TO WRITE: handle multiple DUIDs
+
+
+####################################################################
+
+def remove_unsubscribed_contacts(cc_contacts, synchronizations, log):
+    log.info("Removing CC-unsubscribed contacts from PS data")
+
+    key1 = 'PS MEMBER DUIDS'
+    key2 = 'SOURCE PS MEMBERS'
+    for contact in cc_contacts:
+        if contact['email_address']['permission_to_send'] != 'unsubscribed':
+            continue
+
+        # This person unsubscribed via CC; remove them from synchronizations
+        email = contact['email_address']['address']
+        if key1 not in contact:
+            # If this contact doesn't have a PS member DUID, then by
+            # definition, they are not in any PS data structures (such
+            # as Member Workgroups).  This shouldn't happen: all CC
+            # contacts should have PS Member DUIDs, but we might as
+            # well do some defensive programming here.
+            continue
+
+        if len(contact[key1]) == 0:
+            continue
+
+        duids = contact[key1]
+        log.debug(f'Deleting CC unsubscribed PS Members {duids} from all synchronizations')
+        for sync in synchronizations:
+            for duid in duids:
+                if duid in sync[key2]:
+                    log.debug(f'Deleting CC unsubscribed PS Member {duid} {sync[key2][duid]["py friendly name FL"]} from synchronization {sync["target cc list"]}')
+                    del sync[key2][duid]
+
+####################################################################
+
+def get_union_of_ps_members(synchronizations, log):
+    log.info("Computing the union of all source PS members from synchronizations")
+
+    union = dict()
+    for sync in synchronizations:
+        log.debug(f"- getting PS members for CC list {sync['target cc list']}")
+        for duid, member in sync['SOURCE PS MEMBERS'].items():
+            union[duid] = member
+
+    log.debug(f"Found a total of {len(union)} PS Members for which we need contacts")
+    return union
+
+####################################################################
+
+def find_missing_contacts(contacts, needed_ps_members, log):
+    log.info("Finding PS members for which we need to create a CC contact")
+
+    # Make a quick lookup list of DUIDs for which we have contacts
+    contact_duids = dict()
+    key = 'PS MEMBER DUIDS'
+    for contact in contacts:
+        if key not in contact:
+            continue
+        for duid in contact[key]:
+            contact_duids[duid] = True
+
+    # Find all Members for which we do not have a contact.
+    #
+    # Assemble the information first (before actually making CC API
+    # calls to make the contacts) because we have to scan all the PS
+    # members first to discover all the DUIDs for a given contact.
+    contacts_to_create = dict()
+    for duid, member in needed_ps_members.items():
+        if duid not in contact_duids:
+            email = member['emailAddress']
+            if email not in contacts_to_create:
+                contacts_to_create[email] = {
+                    'email' : email,
+                    'duids' : list(),
+                }
+            contacts_to_create[email]['duids'].append(duid)
+
+    # Now that we have all the information, create the corresponding
+    # CC contacts
+    log.debug("Need to create the following CC contacts")
+    log.debug(pformat(contacts_to_create))
+
+def create_missing_contacts(missing_ps_members,
+                            cc_client_id, cc_access_token, log):
+    # JMS WRITE ME....
+    pass
+
 ####################################################################
 
 def setup_cli_args():
-    tools.argparser.add_argument('--smtp-auth-file',
-                                 required=True,
-                                 help='File containing SMTP AUTH username:password')
-    tools.argparser.add_argument('--slack-token-filename',
-                                 help='File containing the Slack bot authorization token')
+    tools.argparser.add_argument('--cc-auth-only',
+                                default=False,
+                                action='store_true',
+                                help='Only authorizes to Constant Contact, does not do any work')
 
     tools.argparser.add_argument('--ps-api-keyfile',
                                  required=True,
                                  help='File containing the ParishSoft API key')
+
     tools.argparser.add_argument('--ps-cache-dir',
-                                 default='.',
+                                 default='datacache',
                                  help='Directory to cache the ParishSoft data')
 
-    global gapp_id
-    tools.argparser.add_argument('--app-id',
-                                 default=gapp_id,
-                                 help='Filename containing Google application credentials')
-    global guser_cred_file
-    tools.argparser.add_argument('--user-credentials',
-                                 default=guser_cred_file,
-                                 help='Filename containing Google user credentials')
+    tools.argparser.add_argument('--cc-client-id',
+                                default='constant-contact-client-id.json',
+                                help="File containing the Constant Contact Client ID")
+
+    tools.argparser.add_argument('--cc-access-token',
+                                default='constant-contact-access-token.json',
+                                help='File containing the Constant Contact access token')
 
     tools.argparser.add_argument('--dry-run',
                                  action='store_true',
                                  help='Do not actually update the Google Group; just show what would have been done')
 
-    global verbose
     tools.argparser.add_argument('--verbose',
                                  action='store_true',
-                                 default=verbose,
+                                 default=True,
                                  help='If enabled, emit extra status messages during run')
-    global debug
+
     tools.argparser.add_argument('--debug',
                                  action='store_true',
-                                 default=debug,
+                                 default=False,
                                  help='If enabled, emit even more extra status messages during run')
-    global logfile
+
     tools.argparser.add_argument('--logfile',
-                                 default=logfile,
+                                 default="log.txt",
                                  help='Store verbose/debug logging to the specified file')
 
     global args
@@ -277,38 +388,95 @@ def setup_cli_args():
 
     return args
 
-#
-#
-#
-#
-#
+####################################################################
 
 def main():
-	args = setup_cli_args()
+    args = setup_cli_args()
 
-	log = ECC.setup_logging(info=args.verbose,
-							debug=args.debug,
-							logfile=args.logfile, rotate = True,
-							slack_token_filename=args.slack_token_filename)
-	ECC.setup_email(args.smtp_auth_file, smtp_debug=args.debug, log=log)
+    log = ECC.setup_logging(info=args.verbose,
+                            debug=args.debug,
+                            logfile=args.logfile, rotate = True,
+                            slack_token_filename=None)
 
-	log.info("Loading ParishSoft info...")
-	families, members, family_workgroups, member_workgroups, ministries = \
-		ParishSoft.load_families_and_members(api_key=args.api_key,
-											 active_only=True,
-											 parishoners_only=False,
-											 cache_dir=args.ps_cache_dir,
-											 log=log)
+    log.info("Loading ParishSoft info...")
+    families, members, family_workgroups, member_workgroups, ministries = \
+        ParishSoft.load_families_and_members(api_key=args.api_key,
+                                             active_only=False,
+                                             parishioners_only=False,
+                                             cache_dir=args.ps_cache_dir,
+                                             log=log)
 
-	apis = {
-	}
-	services = ''
+    # Read Constant Contact client ID and token files
+    log.info("Loading Constant Contact data...")
+    cc_client_id  = CC.load_client_id(args.cc_client_id, log)
+    log.debug(f"Got cc_client_id: {cc_client_id}")
+    log.debug(f"args.cc_access_token: {args.cc_access_token}")
+    cc_access_token = CC.get_access_token(args.cc_access_token, cc_client_id, log)
 
-	synchronizations = get_synchronizations()
-	for sync in synchronizations:
-		matching_members = find_matching_members(members,
-												 sync, log=log)
-		
+    if args.cc_auth_only:
+        log.info("Only authorizing to Constant Contact; exiting")
+        exit(0)
+
+    # Download all data from Constant Contact
+    cc_contact_custom_fields = \
+        CC.api_get_all(cc_client_id, cc_access_token,
+                        'contact_custom_fields', 'custom_fields',
+                        log)
+
+    cc_lists = \
+        CC.api_get_all(cc_client_id, cc_access_token,
+                        'contact_lists', 'lists',
+                        log)
+
+    cc_contacts = \
+        CC.api_get_all(cc_client_id, cc_access_token,
+                        'contacts', 'contacts',
+                        log,
+                        include='custom_fields,list_memberships,street_addresses')
+
+    # Link various Constant Contact data members together
+    CC.link_cc_data(cc_contacts, cc_contact_custom_fields,
+                    cc_lists, log)
+
+    #----------------------------------------
+
+    # JMS Really only needed to do this once
+    #set_contact_ps_member_duids(cc_contact, cc_client_id, cc_access_token, log)
+
+    # Link Constant Contact Contacts to ParishSoft Members by the
+    # ps_member_duids field
+    log.info("Linking CC Contacts to PS Members...")
+    CC.link_contacts_to_ps_members(cc_contacts, members, log)
+
+    #----------------------------------------
+
+    # Delete contacts that do not have PS Member DUIDs
+    cc_contacts = delete_contacts_without_ps_duids(cc_contacts,
+                                                   cc_client_id, cc_access_token,
+                                                   log)
+
+    # Find CC members that need updates from PS Member data
+    update_contacts_from_ps_members(cc_contacts,
+                                    cc_client_id, cc_access_token, log)
+
+    # Get the synchronizations we're supposed to do
+    synchronizations = get_synchronizations(cc_lists, member_workgroups,
+                                            families, members, log)
+
+    # Remove PS Members from synchronizations who explicitly
+    # unsubscribed
+    remove_unsubscribed_contacts(cc_contacts, synchronizations, log)
+
+    # Get the union of all source PS members from the synchronizations
+    all_needed_ps_members = get_union_of_ps_members(synchronizations, log)
+
+    # Find members that do not have corresponding contacts
+    missing_ps_members = find_missing_contacts(cc_contacts,
+                                               all_needed_ps_members, log)
+
+    # Make any CC Contacts that are needed that do not yet exist
+    create_missing_contacts(missing_ps_members,
+                            cc_client_id, cc_access_token, log)
 
 if __name__ == '__main__':
-	main()
+    main()
