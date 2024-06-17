@@ -1025,6 +1025,8 @@ def load_families_and_members(api_key=None,
         member_workgroup_memberships, \
         ministry_type_memberships
 
+##############################################################################
+
 def get_member_public_phones(member):
     phones = list()
 
@@ -1060,3 +1062,80 @@ def get_member_public_email(member):
     if key in member:
         return member[key]
     return None
+
+def get_member_preferred_first(member):
+    knn1 = 'py contactInfo'
+    knn2 = 'nickName'
+    if knn1 in member and knn2 in member[knn1] and member[knn1][knn2]:
+        return member[knn1][knn2]
+    return member['firstName']
+
+# Simple algorithm for a group salutation of several Members
+#
+# If all the last names are the same:
+#   First1, First2, and First3 Last
+#
+# If any of the last names are different (even if some of them are the
+# same):
+#   First1 Last1, First2 Last2, and First3 and Last3
+def salutation_for_members(members):
+    kln = 'lastName'
+
+    # Simple case: only 1 Member
+    if len(members) == 1:
+        return get_member_preferred_first(members[0]), members[0][kln]
+
+    # Multiple Members
+    # Do they all have the same last name?
+    all_same = True
+    preferred_firsts = list()
+    for member in members:
+        preferred_firsts.append(get_member_preferred_first(member))
+
+        if members[0][kln] != member[kln]:
+            all_same = False
+
+    # Yes, they all have the same last name
+    if all_same:
+        if len(members) == 2:
+            # If there's only 2 members:
+            # First1 and First2
+            first = ' and '.join(preferred_firsts)
+        else:
+            # If there's more than 2 members:
+            # First1, First2, and First3
+            last2 = ', and '.join(preferred_firsts[-2:])
+            preferred_firsts[-2] = last2
+            del preferred_firsts[-1]
+
+            first = ', '.join(preferred_firsts)
+
+        last = members[0][kln]
+        return first, last
+
+    # No, at least some of them have different last names
+    #
+    # There's no good way to decide how to put what to put in the
+    # "first name" field and what to put in the "last name" field.
+    # So we'll do a simple thing: put just the last last name in
+    # the "last name" field.  Put everything else in the "first
+    # name" field.
+    if len(members) == 2:
+        # If there's 2 members:
+        # First1 Last1 and First2 Last2
+        first = f'{preferred_firsts[0]} {members[0][kln]} and {preferred_firsts[1]}'
+        last = members[1][kln]
+        return first, last
+
+    else:
+        # If there's more than 2 members:
+        # First1 Last1, First2 Last2, and First3 Last3
+        names = list()
+        for i, member in enumerate(members[:-1]):
+            names.append(f'{preferred_firsts[i]} {member[kln]}')
+
+        print(f"PREFERRED FIRSTS {preferred_firsts}")
+        first = ', '.join(names) + f', and {preferred_firsts[i+1]}'
+        last = members[-1][kln]
+
+        return first, last
