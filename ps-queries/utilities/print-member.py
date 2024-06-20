@@ -66,18 +66,24 @@ def main():
 
     num_fam = len(families)
     num_mem = len(members)
-    log.info(f"There are {num_fam} families and {num_mem} members")
+    num_registered = 0
+    for family in families.values():
+        if family['registeredOrganizationNameAndCity'] == 'Epiphany Parish, Louisville':
+            num_registered += 1
+    log.info(f"There are {num_registered} registered families, {num_fam} total families, and {num_mem} total members")
 
-    mid = 1137297 # tracy squyres
-    mid = 1139348 # kathryn squyres
-    mid = 1139349 # kaitlyn squyres
-    mid = 1140048 # tracey zoeller
-    mid = 1139251 # Jill Zamiska
-    mid = 1141967 # Andrew Test
-    mid = 1136734 # erin mchugh
-    mid = 1137296 # jeff squyres
+    duid = 1137297 # tracy squyres
+    duid = 1139348 # kathryn squyres
+    duid = 1139349 # kaitlyn squyres
+    duid = 1140048 # tracey zoeller
+    duid = 1139251 # Jill Zamiska
+    duid = 1141967 # Andrew Test
+    duid = 1136734 # erin mchugh
+    duid = 1137296 # jeff squyres
+    duid = 1140961 # Fr. Randy
+    duid = 1236332 # Fr. Toan
 
-    pprint(members[mid], width=200)
+    pprint(members[duid], width=200)
     exit(0)
 
     fid = 156881 # squyres
