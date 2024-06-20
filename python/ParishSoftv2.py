@@ -42,7 +42,7 @@ _org_id = None
 _cache_limit = time.time() - (60 * 14)
 
 # DEBUGGING: A day ago
-#_cache_limit = time.time() - (24 * 60 * 60)
+_cache_limit = time.time() - (24 * 60 * 60)
 
 ##############################################################################
 
@@ -512,6 +512,12 @@ def _load_members(session, org_id, cache_dir, log):
 
     members = { int(element['memberDUID']) : element for element in elements }
 
+    # Normalize all email addresses: make them lower case
+    key = 'emailAddress'
+    for member in members.values():
+        if key in member and member[key]:
+            member[key] = member[key].lower()
+
     return members
 
 # Indexed by Member Status ID
@@ -800,14 +806,25 @@ def _link_families_and_members(families, members, log):
 
 ##############################################################################
 
-# Our current definition of an "Active" Family is that they are
-# not in the "Inactive" Family Group.
+# Our current definition of an "Active" Family is that they are not in
+# the "Inactive" Family Group, and that at least one Member is not
+# deceased.
 def family_is_active(family):
     key = 'py family group'
     if key in family and family[key] == 'Inactive':
         return False
 
-    return True
+    # If all Members are deceased or inactive, the Family is Inactive
+    key = 'py members'
+    if key in family and family[key] is not None:
+        for member in family[key]:
+            # If any Member is active, the Family is Active
+            if member_is_active(member):
+                return True
+
+    # There are either no Members in this Family, or all members must
+    # have been deceased, so the Family is Inactive.
+    return False
 
 # Our current definition of a "Parishioner" Family is one who is in
 # Epiphany's organization.
@@ -1060,7 +1077,7 @@ def get_member_public_email(member):
 
     key = 'emailAddress'
     if key in member:
-        return member[key]
+        return member[key].lower()
     return None
 
 def get_member_preferred_first(member):

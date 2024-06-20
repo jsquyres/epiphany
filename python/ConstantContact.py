@@ -4,11 +4,20 @@ import os
 import json
 import copy
 import random
+import inspect
 import datetime
 import requests
 
 from pprint import pprint
 from pprint import pformat
+
+import ParishSoftv2 as ParishSoft
+
+# This is the name of the custom field we maintain on Constant Contact
+# Contacts that holds the corresponding ParishSoft Member DUID
+_cc_contact_custom_field_ps_member_duids = 'ps_member_duids'
+# This is the UUID corresponding to that field
+_cc_contact_custom_field_ps_member_duids_uuid = None
 
 ####################################################################
 #
@@ -16,27 +25,29 @@ from pprint import pformat
 #
 ####################################################################
 
-def api_headers(client_id, access_token, include=None, limit=None):
+def api_headers(client_id, access_token, include=None, limit=None, status=None):
     headers = {
         'Authorization' : f'Bearer {access_token["access_token"]}',
         'Cache-Control' : 'no-cache',
     }
 
     params = dict()
-    if include or limit:
-        if include:
-            params['include'] = include
-        if limit:
-            params['limit'] = limit
+    if include:
+        params['include'] = include
+    if limit:
+        params['limit'] = limit
+    if status:
+        params['status'] = status
 
     return headers, params
 
 def api_get_all(client_id, access_token,
-                   api_endpoint, json_response_field,
-                   log, include=None):
+                api_endpoint, json_response_field,
+                log, include=None, status=None):
     # CC docs say 500 is the max
     headers, params = api_headers(client_id, access_token,
-                                     include=include, limit=500)
+                                  include=include,
+                                  status=status, limit=500)
 
     base_url = f"{client_id['endpoints']['api']}/v3/{api_endpoint}"
 
@@ -48,8 +59,8 @@ def api_get_all(client_id, access_token,
         log.debug(f"Getting URL: {url}")
         # JMS Need to surround this in a retry
         r = requests.get(url, headers=headers, params=params)
-        if r.status_code != 200:
-            log.error(f"Got a non-200 GET (all) status: {r.status_code}")
+        if r.status_code < 200 or r.status_code > 299:
+            log.error(f"Got a non-2xx GET (all) status: {r.status_code}")
             log.error(r.text)
             exit(1)
 
@@ -80,8 +91,8 @@ def api_get(client_id, access_token, uuid,
     log.debug(f"Getting URL: {url}")
     # JMS Need to surround this in a retry
     r = requests.get(url, headers=headers, params=params)
-    if r.status_code != 200:
-        log.error(f"Got a non-200 GET status: {r.status_code}")
+    if r.status_code < 200 or r.status_code > 299:
+        log.error(f"Got a non-2xx GET status: {r.status_code}")
         log.error(r.text)
         exit(1)
 
@@ -96,12 +107,31 @@ def api_put(client_id, access_token,
     url = f"{client_id['endpoints']['api']}/v3/{api_endpoint}"
     log.info(f"Putting a single Constant Contact item to endpoint {api_endpoint}")
 
-    log.debug(f"Putting URL: {url}")
     log.debug(pformat(body))
     r = requests.put(url, headers=headers,
                      data=json.dumps(body))
-    if r.status_code != 200:
-        log.error(f"Got a non-200 PUT status: {r.status_code}")
+    if r.status_code < 200 or r.status_code > 299:
+        log.error(f"Got a non-2xx PUT status: {r.status_code}")
+        log.error(r.text)
+        exit(1)
+
+    response = json.loads(r.text)
+    return response
+
+# JMS Is this nearly identical to api_put -- can they be combined?
+def api_post(client_id, access_token,
+             api_endpoint, body, log):
+    headers, params = api_headers(client_id, access_token)
+    headers['Content-Type'] = 'application/json'
+
+    url = f"{client_id['endpoints']['api']}/v3/{api_endpoint}"
+    log.info(f"Posting a single Constant Contact item to endpoint {api_endpoint}")
+
+    log.debug(pformat(body))
+    r = requests.post(url, headers=headers,
+                      data=json.dumps(body))
+    if r.status_code < 200 or r.status_code > 299:
+        log.error(f"Got a non-2xx POST status: {r.status_code}")
         log.error(r.text)
         exit(1)
 
@@ -333,7 +363,7 @@ def get_access_token(access_token_filename, client_id, log):
 #
 ####################################################################
 
-def _write_contact(contact, client_id, access_token, action, log):
+def _make_naked_custom_fields(contact):
     # Make a list of new custom_fields data: exclude the "NAME" field
     # (we added that -- it's not a CC field)
     new_custom_fields = list()
@@ -343,6 +373,11 @@ def _write_contact(contact, client_id, access_token, action, log):
             'value' : field['value'],
         }
         new_custom_fields.append(value)
+
+    return new_custom_fields
+
+def update_contact_full(contact, client_id, access_token, log):
+    new_custom_fields = _make_naked_custom_fields(contact)
 
     # Make a contact data structure to pass to the CC API.
     # We have to include all fields :-(
@@ -363,32 +398,79 @@ def _write_contact(contact, client_id, access_token, action, log):
         if field in contact:
             body[field] = contact[field]
 
+    api_put(client_id, access_token,
+            f'contacts/{contact["contact_id"]}',
+            body, log)
+
+# JMS This function should be renamed: it can create or update.
+def create_contact(contact, client_id, access_token, log):
+    new_custom_fields = _make_naked_custom_fields(contact)
+
+    # Make a contact data structure to pass to the CC API.
+    # We have to include all fields :-(
+    body = {
+        'custom_fields' : new_custom_fields,
+        'email_address' : contact['email_address']['address'],
+    }
+    for field in ['first_name',
+                  'last_name',
+                  'job_title',
+                  'company_name',
+                  'birthday_month',
+                  'birthday_day',
+                  'anniversary',
+                  'street_addresses',
+                  'list_memberships']:
+        if field in contact:
+            body[field] = contact[field]
+
+    # Apparently, CC doesn't like first names with periods in them
+    # (!!) -- even if we downloaded the name with periods in it from
+    # CC.  E.g., if we downloade "T.J." "Smith" from CC, but then try
+    # to update that contact, CC will fail saying that the first_name
+    # is invalid.
+    if 'first_name' in body:
+        body['first_name'] = body['first_name'].replace('.' , '')
+
     # Now put the contact back to Constant Contact
-    if action == "update":
-        fn = api_put
-        endpoint = f'contacts/{contact["contact_id"]}'
-    elif action == 'create':
-        fn = api_post
-        endpoint = 'contacts'
-    else:
-        log.error(f"Unknown CC contact action: {action}")
+    api_post(client_id, access_token,
+             'contacts/sign_up_form', body, log)
+
+def create_contact_dict(email, ps_mduids, ps_members, log):
+    if _cc_contact_custom_field_ps_member_duids_uuid is None:
+        frame = inspect.currentframe()
+        log.error(f"Must call ConstantContact.link_cc_data() before ConstantContact{frame.f_code.co_name}")
         log.error("Aborting in despair")
         exit(1)
 
-    fn(client_id, access_token, endpoint, body, log)
+    cfid = _cc_contact_custom_field_ps_member_duids_uuid
+    first_name, last_name = \
+        ParishSoft.salutation_for_members(ps_members)
+    mduids_str = [ str(duid) for duid in ps_mduids ]
+    mduids_str = ','.join(mduids_str)
 
-def update_contact(contact, client_id, access_token, log):
-    _write_contact(contact, client_id, access_token, "update", log)
+    contact = {
+        'email_address' : {
+            'address' : email.lower(),
+        },
 
-def create_contact(contact, client_id, access_token, log):
+        'custom_fields' : [
+            {
+                'custom_field_id' : cfid,
+                'value' : mduids_str,
+            },
+        ],
 
+        'first_name' : first_name,
+        'last_name' : last_name,
 
+        'list_memberships' : [],
+        'LIST MEMBERSHIPS' : [],
 
-    # JMS Need to insert PS MEMBER DUIDS field somehow
-
-
-
-    _write_contact(contact, client_id, access_token, "create", log)
+        'PS MEMBER DUIDS' : ps_mduids,
+        'PS MEMBERS' : ps_members,
+    }
+    return contact
 
 ####################################################################
 #
@@ -397,53 +479,76 @@ def create_contact(contact, client_id, access_token, log):
 ####################################################################
 
 def link_cc_data(contacts, custom_fields_arg, lists_arg, log):
-    # Make dictionaries of the custom fields and lists (by UUID) for
-    # quick reference.
-    custom_fields = dict()
-    for cf in custom_fields_arg:
-        custom_fields[cf['custom_field_id']] = cf['name']
+    def _resolve_custom_fields():
+        # Make dictionaries of the custom fields and lists (by UUID) for
+        # quick reference.
+        custom_fields = dict()
+        for cf in custom_fields_arg:
+            custom_fields[cf['custom_field_id']] = cf['name']
 
-    lists = dict()
-    for l in lists_arg:
-        lists[l['list_id']] = l['name']
+        # Stash the UUID of the contact custom field that we use
+        global _cc_contact_custom_field_ps_member_duids_uuid
+        for cf in custom_fields_arg:
+            if cf['name'] == _cc_contact_custom_field_ps_member_duids:
+                _cc_contact_custom_field_ps_member_duids_uuid = \
+                    cf['custom_field_id']
+        if _cc_contact_custom_field_ps_member_duids_uuid is None:
+            log.error(f"Could not find Constant Contact custom contact field named \"{_cc_contact_custom_field_ps_member_duids}")
+            log.error("Aborting in despair")
+            exit(1)
 
-    # Now go through each contact and resolve the UUIDs to names /
-    # objects.
-    for contact in contacts:
-        # For the custom fields, just add a "name" field to the
-        # existing data structure.
+        # Now go through each contact and resolve the UUIDs to names /
+        # objects.
         key = 'custom_fields'
-        if key in contact:
-            for cf in contact[key]:
-                uuid = cf['custom_field_id']
-                if uuid in custom_fields:
-                    # Use all caps NAME to denote that we put this
-                    # data here; it wasn't provided by CC.
-                    cf['NAME'] = custom_fields[uuid]
+        for contact in contacts:
+            # For the custom fields, just add a "name" field to the
+            # existing data structure.
+            if key in contact:
+                for cf in contact[key]:
+                    uuid = cf['custom_field_id']
+                    if uuid in custom_fields:
+                        # Use all caps NAME to denote that we put this
+                        # data here; it wasn't provided by CC.
+                        cf['NAME'] = custom_fields[uuid]
 
-                # Also, for convenience, save that custom field name
-                # out on the outter contact data structure (not under
-                # 'custom_fields').  This just saves a little code
-                # elsewhere (i.e., we can just look for the custom
-                # field name, look at all the 'NAME' values in
-                # contact['custom_fields'] and then take its
-                # corresponding 'value').
-                contact[custom_fields[uuid]] = cf['value']
+                    # Also, for convenience, save that custom field name
+                    # out on the outter contact data structure (not under
+                    # 'custom_fields').  This just saves a little code
+                    # elsewhere (i.e., we can just look for the custom
+                    # field name, look at all the 'NAME' values in
+                    # contact['custom_fields'] and then take its
+                    # corresponding 'value').
+                    contact[custom_fields[uuid]] = cf['value']
 
-        # For list memberships, CC gives us a list of UUIDs.  Save the
-        # names in LIST MEMBERSHIPS, for human readability.
+    def _resolve_lists():
+        lists = dict()
+        for l in lists_arg:
+            lists[l['list_id']] = l
+            l['CONTACTS'] = dict()
+
         key = 'list_memberships'
         key2 = 'LIST MEMBERSHIPS'
-        if key in contact:
-            contact[key2] = list()
-            for uuid in contact[key]:
-                if uuid in lists:
-                    contact[key2].append(lists[uuid])
+        for contact in contacts:
+            # For list memberships, CC gives us a list of UUIDs.  Save
+            # the names in LIST MEMBERSHIPS, for human readability.
+            # Also build the reverse indexes: for each CC list, build
+            # up a list of contacts on that list.
+            if key in contact:
+                contact[key2] = list()
+                for uuid in contact[key]:
+                    if uuid in lists:
+                        contact[key2].append(lists[uuid]['name'])
+                        lists[uuid]['CONTACTS'][contact['email_address']['address']] = contact
+
+    #-----------------
+
+    _resolve_custom_fields()
+    _resolve_lists()
 
 # Using the "PS MEMBER DUIDS" custom field on the CC Contact, link in
 # all relevant PS Members
 def link_contacts_to_ps_members(contacts, ps_members, log):
-    key = 'ps_member_duids'
+    key = _cc_contact_custom_field_ps_member_duids
     for contact in contacts:
         if key not in contact:
             continue
