@@ -39,7 +39,7 @@ _session = None
 _org_id = None
 
 # 14 minutes ago (because we run via cron every 15 minutes)
-_cache_limit = time.time() - (60 * 14)
+#_cache_limit = time.time() - (60 * 14)
 
 # DEBUGGING: A day ago
 _cache_limit = time.time() - (24 * 60 * 60)
@@ -1090,11 +1090,11 @@ def get_member_preferred_first(member):
 # Simple algorithm for a group salutation of several Members
 #
 # If all the last names are the same:
-#   First1, First2, and First3 Last
+#   "First1, First2, and First3" "Last"
 #
 # If any of the last names are different (even if some of them are the
 # same):
-#   First1 Last1, First2 Last2, and First3 and Last3
+#   "First1 Last1, First2 Last2, and First3 and" "Last3"
 def salutation_for_members(members):
     kln = 'lastName'
 
