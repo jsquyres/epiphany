@@ -124,26 +124,6 @@ def api_post(client_id, access_token,
                             client_id, access_token, api_endpoint,
                             body, log)
 
-# JMS Is this nearly identical to api_put -- can they be combined?
-def BOGUS_OLD_api_post(client_id, access_token,
-             api_endpoint, body, log):
-    headers, params = api_headers(client_id, access_token)
-    headers['Content-Type'] = 'application/json'
-
-    url = f"{client_id['endpoints']['api']}/v3/{api_endpoint}"
-    log.info(f"Posting a single Constant Contact item to endpoint {api_endpoint}")
-
-    log.debug(pformat(body))
-    r = requests.post(url, headers=headers,
-                      data=json.dumps(body))
-    if r.status_code < 200 or r.status_code > 299:
-        log.error(f"Got a non-2xx POST status: {r.status_code}")
-        log.error(r.text)
-        exit(1)
-
-    response = json.loads(r.text)
-    return response
-
 ####################################################################
 #
 # Constant Contact authentication
@@ -467,6 +447,9 @@ def create_contact_dict(email, ps_members, log):
         'PS MEMBERS' : ps_members,
     }
 
+    for ps_member in ps_members:
+        ps_member['CONTACT'] = contact
+
     return contact
 
 ####################################################################
@@ -526,64 +509,7 @@ def link_cc_data(contacts, custom_fields_arg, lists_arg, log):
     _resolve_custom_fields()
     _resolve_lists()
 
-# Using the "PS MEMBER DUIDS" custom field on the CC Contact, link in
-# all relevant PS Members
-#
-# JMS THIS IS STALE -- can be deleted?
 def link_contacts_to_ps_members(contacts, ps_members, log):
-    key = 'CUSTOM FIELDS'
-    key2 = _cc_contact_custom_field_ps_member_duids
-    for contact in contacts:
-        if key not in contact:
-            continue
-        if key2 not in contact[key]:
-            continue
-
-        # The value of this field will be a comma-delimited list of
-        # Member DUIDs (because one email may map back to mutliple PS
-        # Members).
-        #
-        # Be safe in trying to convert the Member DUID list, just in
-        # case the custom field got corrupted / is not an integer
-        # (since technically this field is modifiable by humans via
-        # the Constant Contact GUI).
-        mduids = list()
-        stale_cc_ps_duids = False
-        for val in contact[key][key2]['value'].split(','):
-            try:
-                mduid = int(val)
-                mduids.append(mduid)
-            except:
-                stale_cc_ps_duids = True
-                # Just skip it
-                log.error(f"Skipped non-integer Member DUID in Contact {contact['first_name']} {contact['last_name']} <{contact['email_address']['address']}> {key} field: {contact[key]}")
-
-        found_mduids = list()
-        found_mduids_str = list()
-        found_members = list()
-        for mduid in mduids:
-            if mduid in ps_members:
-                found_mduids.append(mduid)
-                found_mduids_str.append(str(mduid))
-                found_members.append(ps_members[mduid])
-            else:
-                stale_cc_ps_duids = True
-
-        # Set the list of found PS Members on the contact.
-        # Also re-set the list of Member DUIDs to be a) integers (not
-        # strings) and b) only valid Member DUIDs.
-        if len(found_members) > 0:
-            contact['PS MEMBER DUIDS'] = sorted(found_mduids)
-            contact['PS MEMBERS'] = found_members
-            
-        # If the list of PS Member DUIDs was stale, overwrite the old
-        # value with the corrected value
-        contact['STALE PS MEMBER DUIDS'] = stale_cc_ps_duids
-        if stale_cc_ps_duids:
-            new_value = ','.join(found_mduids_str)
-            contact[key][key2]['value'] = new_value
-
-def link_contacts_to_ps_members_by_email(contacts, ps_members, log):
     # Make a quick lookup of PS Members by email address
     members_by_email = dict()
     for member in ps_members.values():
@@ -600,4 +526,8 @@ def link_contacts_to_ps_members_by_email(contacts, ps_members, log):
     for contact in contacts:
         email = contact['email_address']['address']
         if email in members_by_email:
+            # Make a link to the list of PS Members on the contact
             contact[key] = members_by_email[email]
+            for ps_member in contact[key]:
+                # Make a link to the contact on each PS Member
+                ps_member['CONTACT'] = contact
