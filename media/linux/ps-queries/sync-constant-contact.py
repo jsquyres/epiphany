@@ -74,6 +74,8 @@ def get_synchronizations(cc_contacts, cc_lists, ps_member_workgroups,
             'target cc list'      : 'SYNC Daily Gospel Reflections',
             'notify'              : f'ps-constantcontact-sync{ecc}',
         },
+    ]
+    bogus = [
         {
             'source function'     : frtoan_letter_members_fn,
             'target cc list'      : 'SYNC Fr. Toan initial letter',
@@ -90,8 +92,9 @@ def get_synchronizations(cc_contacts, cc_lists, ps_member_workgroups,
         if key not in sync:
             return
 
+        source_wg_name = sync[key]
         for wg in ps_member_workgroups.values():
-            if wg['name'] == sync[key]:
+            if wg['name'] == source_wg_name:
                 members = dict()
                 for item in wg['membership']:
                     duid = item['py member duid']
@@ -99,13 +102,13 @@ def get_synchronizations(cc_contacts, cc_lists, ps_member_workgroups,
                     email = member['emailAddress']
                     members[email] = member
 
-                log.debug(f'Found: PS Member Workgroup named "{sync[key]}" with {len(members)} PS Members')
+                log.info(f'Found: PS Member Workgroup named "{source_wg_name}" with {len(members)} PS Members')
 
                 sync['SOURCE PS MEMBERS'] = members
                 return
 
         # If we got here, we didn't find it
-        log.error('Did not find a ParishSoft Member Workgroup named "{sync[key]}"')
+        log.error('Did not find a ParishSoft Member Workgroup named "{source_wg_name}"')
         log.error("Aborting in despair")
         exit(1)
 
@@ -118,7 +121,7 @@ def get_synchronizations(cc_contacts, cc_lists, ps_member_workgroups,
                                           ps_member_workgroups,
                                           ps_members, ps_families,
                                           log)
-        log.debug(f"Invoked Python function for source PS members, got {len(members)} PS Members")
+        log.info(f"Invoked Python function for source PS members, got {len(members)} PS Members")
         sync['SOURCE PS MEMBERS'] = members
 
     def _resolve_cc_list(sync):
@@ -132,8 +135,7 @@ def get_synchronizations(cc_contacts, cc_lists, ps_member_workgroups,
         found = False
         for l in cc_lists:
             if l['name'] == sync[key]:
-                log.debug(f'Found: CC list named "{sync[key]}"')
-                log.debug(pformat(l, depth=3))
+                log.info(f'Found: CC list named "{sync[key]}"')
                 sync[f'TARGET CC LIST'] = l
                 found = True
                 break
@@ -180,7 +182,7 @@ def frtoan_letter_members_fn(cc_contacts, cc_lists,
         # members are deceased.
         if not ParishSoft.family_is_active(family):
             continue
-        if not family['sendNoMail']:
+        if family['sendNoMail']:
             continue
 
         found_member = False
@@ -192,11 +194,11 @@ def frtoan_letter_members_fn(cc_contacts, cc_lists,
             if not ParishSoft.member_is_active(member):
                 continue
 
-            happy = False
+            happy = True
             email = member[key]
             if email in contacts_by_email:
-                if contacts_by_email[email]['email_address']['permission_to_send'] != 'unsubscribed':
-                    happy = True
+                if contacts_by_email[email]['email_address']['permission_to_send'] == 'unsubscribed':
+                    happy = False
 
             if happy:
                 send_email_members[email] = member
@@ -205,7 +207,7 @@ def frtoan_letter_members_fn(cc_contacts, cc_lists,
         if not found_member:
             no_email_families.append(family)
 
-    log.debug(f"Found {len(send_email_members)} Member emails we can send Fr. Toan's letter")
+    log.info(f"Found {len(send_email_members)} Member emails we can send Fr. Toan's letter")
 
     send_usps_families = dict()
     for family in no_email_families:
@@ -374,171 +376,14 @@ def report_csv(contacts, log):
 
 ####################################################################
 
-def sanity_check_cc_contact_ps_members(cc_contacts, members, log):
-    log.info("Sanity checking PS Member DUIDs on CC Contacts...")
-
-    key = 'PS MEMBERS'
-    for contact in cc_contacts:
-        if key not in contact or len(contact[key]) == 0:
-            contact[to_do_key]['delete'] = True
-            log.debug(f'No PS Members left on contact {contact["email_address"]["address"]}" -- marked for deletion')
-
-####################################################################
-
-# JMS Can probably be deleted?
-def OLD_JMS_update_contacts_from_ps_members(contacts, log):
-    def _update_single(contact, log):
-        member = contact[key][0]
-
-        # Check to see if we need to update the contact email address
-        ps_email = member['emailAddress']
-        if ps_email is None:
-            log.error(f'Contact somehow has a PS member email address of None')
-            log.error(pformat(contact))
-            log.error('Aborting in despair')
-            exit(1)
-
-        if contact['email_address']['address'] != ps_email:
-            # Check to make sure the new PS Member email address
-            # doesn't already exist in another Contact already.
-            if ps_email in contact_email_lookup:
-                # It does!  This contact is now (likely) moot.  Zero
-                # out the PS Member info (we'll sweep contacts looking
-                # for empty PS member data later).
-                contact[key] = list()
-                contact['PS MEMBER DUIDS'] = list()
-                contact['STALE PS MEMBER DUIDS'] = True
-
-                # Now update the other contact
-                new_contact = contact_email_lookup[ps_email]
-                new_contact[key].append(member)
-                new_contact['PS MEMBER DUIDS'].append(member['memberDUID'])
-                new_contact['STALE PS MEMBER DUIDS'] = True
-                
-                return _update_multiple(new_contact, log)
-
-            # Nope, the new PS Member email address does not already
-            # exist as a Contact.  So just update this Contact.
-            old = contact['email_address']['address']
-            contact['email_address']['address'] = ps_email
-            log.info(f"Update contact email address: {old} --> {email}")
-            contact[to_do_key]['update'] = True
-
-        # Apparently, CC doesn't like first names with periods in them (!!)
-        # E.g., "K.C." will fail to be set at CC.
-        ps_first = ParishSoft.get_member_preferred_first(member)
-        ps_first = ps_first.replace('.', '').strip()
-        if contact['first_name'] != ps_first:
-            old = contact['first_name']
-            contact['first_name'] = ps_first
-            log.info(f"Update contact {email} first name: {old} --> {ps_first}")
-            contact[to_do_key]['update'] = True
-
-        ps_last = member['lastName'].strip()
-        if contact['last_name'] != ps_last:
-            old = contact['last_name']
-            contact['last_name'] = ps_last
-            log.info(f"Update contact {email} last name: {old} --> {ps_last}")
-            contact[to_do_key]['update'] = True
-
-    #-------------------------------------------
-            
-    def _update_multiple(contact, log):
-        # First, make lists of PS Members on this contact; each list
-        # of Members will all share the same email address.
-        members_by_email = dict()
-        for member in contact[key]:
-            ps_email = member['emailAddress']
-            if ps_email not in members_by_email:
-                members_by_email[ps_email] = list()
-            members_by_email[ps_email].append(member)
-
-        # Process each set of Members with the same email address
-        contact_email = contact['email_address']['address']
-        for email, member_list in members_by_email.items():
-            # Is this Member group's email address the same as the
-            # current contact?
-            if email == contact_email:
-                # Yes!  So we're updating _this_ contact
-                pass
-
-            else:
-                # No, not this contact.  Does this email address exist
-                # in some other contact?
-                if email in contact_email_lookup:
-                    # Yes!  There's some other contact with this email
-                    # address.
-
-                    # JMS Copy / adapt what was done above in
-                    # update_single to add these members to the other
-                    # contact and then call update_multiple
-
-                    pass
-
-                else:
-                    # Nope; this email address doesn't exist at any
-                    # other contact.  For simplicity: make a new Contact.
-                    
-                    # This contact may end up with no more Members, but that's not our problem.
-
-                    # We can't (yet) know if we can re-purpose this
-                    # contact for the new email address until we
-                    # finish traversing all the groups in
-                    # members_by_email (i.e., if no one else is using
-                    # this contact, we can re-purpose it for this new
-                    # email address).
-
-                    pass
-
-
-
-
-
-
-        # JMS WRITE ME
-
-        # Handle the case where there's multiple DUIDs on this single
-        # contact.  Need to handle a bunch of sub-cases: e.g., if one
-        # PS member changes email address and the other does not,
-        # ... etc.
-
-
-
-
-
-
-
-
-        pass
-
-    #----------------------------------------
-
-    log.info("Looking for CC Contacts that need to be updated from PS Member data...")
-
-    # Build a quick lookup table of contact email addresses
-    contact_email_lookup = dict()
-    for contact in contacts:
-        contact_email_lookup[contact['email_address']['address']] = contact
-    
-    key = 'PS MEMBERS'
-    for contact in contacts:
-        # We only care about Contacts with PS Members
-        if key not in contact:
-            continue
-
-        # The logic for handling updates is quite different between
-        # handling a contact that maps to a single PS Member vs. a
-        # contact that maps to multiple PS Members.  Split the
-        # handling into two different subroutines, for simplicity.
-        if len(contact[key]) == 1:
-            _update_single(contact, log)
-        else:
-            _update_multiple(contact, log)
-
-####################################################################
-
 def update_contacts_from_ps_members(contacts, log):
     log.info("Looking for CC Contacts that need to be updated from PS Member data...")
+
+    # JMS WE ARE NOT CURRENTLY UPDATING NAMES FROM PARISHSOFT
+    return
+
+
+
 
     key = 'PS MEMBERS'
     for contact in contacts:
@@ -549,22 +394,41 @@ def update_contacts_from_ps_members(contacts, log):
         email = contact['email_address']['address']
         ps_first, ps_last = \
             ParishSoft.salutation_for_members(contact[key])
-        
+
         # Apparently, CC doesn't like first names with periods in them (!!)
         # E.g., "K.C." will fail to be set at CC.
         ps_first = ps_first.replace('.', '').strip()
         if contact['first_name'] != ps_first:
             old = contact['first_name']
             contact['first_name'] = ps_first
-            log.info(f"Update contact {email} first name: {old} --> {ps_first}")
+            s = f"Update contact {email} first name: {old} --> {ps_first}"
+            log.debug(s)
+            contact[to_do_key]['actions'].append(s)
             contact[to_do_key]['update'] = True
 
         if contact['last_name'] != ps_last:
             old = contact['last_name']
             contact['last_name'] = ps_last
-            log.info(f"Update contact {email} last name: {old} --> {ps_last}")
+            s = f"Update contact {email} last name: {old} --> {ps_last}"
+            log.debug(s)
+            contact[to_do_key]['actions'].append(s)
             contact[to_do_key]['update'] = True
-            
+
+####################################################################
+
+def remove_cc_contacts_with_no_ps_members(cc_contacts, members, log):
+    log.info("Sanity checking PS Member DUIDs on CC Contacts...")
+
+    key = 'PS MEMBERS'
+    for contact in cc_contacts:
+        if key not in contact or len(contact[key]) == 0:
+            s = f'No PS Members left on contact {contact["email_address"]["address"]}" -- marked for deletion'
+            log.debug(s)
+
+            # JMS UNCOMMENT ME WHEN WE START DELETING
+            #contact[to_do_key]['actions'].append(s)
+            #contact[to_do_key]['delete'] = True
+
 ####################################################################
 
 def remove_unsubscribed_contacts(cc_contacts, synchronizations, log):
@@ -592,7 +456,7 @@ def remove_unsubscribed_contacts(cc_contacts, synchronizations, log):
             continue
 
         email = contact['email_address']['address']
-        log.debug(f'Deleting CC unsubscribed {email} from all synchronizations')
+        log.info(f'Deleting CC unsubscribed {email} from all synchronizations')
         for sync in synchronizations:
             for member in contact[key1]:
                 member_email = member['emailAddress']
@@ -648,11 +512,14 @@ def create_missing_contacts(cc_contacts, needed_ps_members, log):
     # CC contacts locally in memory
     log.debug(f"Need to create CC contacts for {len(contacts_to_create)} email addresses")
     for email, data in contacts_to_create.items():
-        log.debug(f"Creating contact data structure for {email}")
+        log.info(f"Creating contact data structure for {email}")
         contact = CC.create_contact_dict(email,
                                          data['ps members'],
                                          log)
-        contact[to_do_key] = { 'create' : True }
+        contact[to_do_key] = {
+            'create' : True,
+            'actions' : list(),
+        }
         cc_contacts.append(contact)
 
 ####################################################################
@@ -681,49 +548,39 @@ def compute_sync(synchronizations, contacts, log):
         list_uuid = sync[key2]['list_id']
         list_name = sync['target cc list']
 
+        sync_name = sync['target cc list']
+
         # First, find PS Members who are not in the CC list
         for member_email, member in sync[key1].items():
-            if member_email not in sync[key2]:
+            if member_email not in sync[key2]['CONTACTS']:
                 # Need to add this list UUID to the contact
                 # corresponding to the PS member
-                contact = sync[key2]['CONTACTS'][member_email]
-                log.debug(f"Need to add {member_email} to {list_name}")
+                contact = member['CONTACT']
+                s = f"Need to add {member_email} to {list_name}"
+                log.debug(s)
                 log.debug(f"Adding UUID: {list_uuid}")
                 log.debug(f"to list: {contact['list_memberships']}")
 
                 contact['list_memberships'].append(list_uuid)
                 contact['LIST MEMBERSHIPS'].append(list_name)
 
+                contact[to_do_key]['actions'].append(s)
                 contact[to_do_key]['update'] = True
 
-
-
-
-
-
-
-
-
-
-
-
-JMS The below is removing too many emails from the lists8
-
-
-
-                
         # Now find CC contacts who are not PS Members
         for contact_email, contact in sync[key2]['CONTACTS'].items():
             if contact_email not in sync[key1]:
                 # Need to remove this list UUID from the contact
                 # corresponding to this email
-                log.debug(f"Need to remove {contact_email} from {list_name}")
+                s = f"Need to remove {contact_email} from {list_name}"
+                log.debug(s)
                 log.debug(f"Removing UUID: {list_uuid}")
                 log.debug(f"from list: {contact['list_memberships']}")
 
                 contact['list_memberships'].remove(list_uuid)
                 contact['LIST MEMBERSHIPS'].remove(list_name)
 
+                contact[to_do_key]['actions'].append(s)
                 contact[to_do_key]['update unsub'] = True
 
 ####################################################################
@@ -732,8 +589,12 @@ def delete_contacts_with_no_lists(cc_contacts, log):
     for contact in cc_contacts:
         if len(contact['list_memberships']) == 0:
             email = contact['email_address']['address']
-            log.info(f'Contact {email} no longer on any lists; marking for deletion')
-            contact[to_do_key]['delete'] = True
+            s = f'Contact {email} no longer on any lists; marking for deletion'
+            log.debug(s)
+
+            # JMS UNCOMMENT ME WHEN WE START DELETING
+            #contact[to_do_key]['actions'].append(s)
+            #contact[to_do_key]['delete'] = True
 
 ####################################################################
 
@@ -748,6 +609,8 @@ def perform_cc_actions(cc_contacts, client_id, access_token, log):
     log.debug(pformat(keys))
 
     for contact in cc_contacts:
+        email = contact['email_address']['address']
+
         if len(contact[to_do_key]) == 0:
             continue
 
@@ -764,7 +627,7 @@ def perform_cc_actions(cc_contacts, client_id, access_token, log):
 
             # JMS We're not deleting any contacts yet
             # JMS WRITE ME
-            pass
+            log.debug(f"CC action: delete {email}: {contact[to_do_key]['actions']}")
 
 
 
@@ -774,7 +637,9 @@ def perform_cc_actions(cc_contacts, client_id, access_token, log):
 
             if 'create' in actions or 'update' in actions:
                 # We need to update this contact at CC
-                CC.create_or_update_contact(contact, client_id, access_token, log)
+                # JMS DON'T DO IT YET
+                #CC.create_or_update_contact(contact, client_id, access_token, log)
+                log.info(f"CC action: create or update: {contact[to_do_key]['actions']}")
 
             if 'update unsub' in actions:
                 # The CC.create_contact() function will update a bunch
@@ -789,7 +654,9 @@ def perform_cc_actions(cc_contacts, client_id, access_token, log):
                 # NOTE: This will only ever happen to contacts that
                 # already existed at CC.  Contacts that were just
                 # created at CC won't fall down into this block.
-                CC.update_contact_full(contact, client_id, access_token, log)
+                # JMS DON'T DO IT YET
+                #CC.update_contact_full(contact, client_id, access_token, log)
+                log.info(f"CC action: update unsub: {contact[to_do_key]['actions']}")
 
 ####################################################################
 
@@ -874,8 +741,6 @@ def main():
     # Read Constant Contact client ID and token files
     log.info("Loading Constant Contact data...")
     cc_client_id  = CC.load_client_id(args.cc_client_id, log)
-    log.debug(f"Got cc_client_id: {cc_client_id}")
-    log.debug(f"args.cc_access_token: {args.cc_access_token}")
     cc_access_token = CC.get_access_token(args.cc_access_token, cc_client_id, log)
 
     if args.cc_auth_only:
@@ -908,7 +773,7 @@ def main():
     log.debug(f"Downloaded {len(cc_contacts)} CC contacts")
     log.debug(pformat(cc_contacts))
 
-    jms_sanity(cc_contacts, log)
+    #jms_sanity(cc_contacts, log)
 
     #----------------------------------------
 
@@ -922,84 +787,65 @@ def main():
 
         # Make an empty list of actions to be performed for each
         # contact
-        contact[to_do_key] = dict()
+        contact[to_do_key] = { 'actions' : list() }
 
     # Link various Constant Contact data structures together
     CC.link_cc_data(cc_contacts, cc_contact_custom_fields,
                     cc_lists, log)
 
-    jms_sanity(cc_contacts, log)
+    #jms_sanity(cc_contacts, log)
 
     #----------------------------------------
 
     # Link Constant Contact Contacts to ParishSoft Members by the
     # ps_member_duids field
     log.info("Linking CC Contacts to PS Members...")
-    # JMS Why are we looking at DUIDs at all?
-    #CC.link_contacts_to_ps_members(cc_contacts, members, log)
-    # JMS Try linking contacts solely by email addresses
-    CC.link_contacts_to_ps_members_by_email(cc_contacts, members, log)
-    jms_sanity(cc_contacts, log)
+    CC.link_contacts_to_ps_members(cc_contacts, members, log)
+    #jms_sanity(cc_contacts, log)
 
     # Find CC members that need updates from PS Member data
     update_contacts_from_ps_members(cc_contacts, log)
-    jms_sanity(cc_contacts, log)
+    #jms_sanity(cc_contacts, log)
 
     # Check for contacts with no PS Members
-    sanity_check_cc_contact_ps_members(cc_contacts, members, log)
-    jms_sanity(cc_contacts, log)
+    remove_cc_contacts_with_no_ps_members(cc_contacts, members, log)
+    #jms_sanity(cc_contacts, log)
 
     # Get the synchronizations we're supposed to do
     synchronizations = get_synchronizations(cc_contacts, cc_lists,
                                             member_workgroups,
                                             members, families, log)
-    jms_sanity(cc_contacts, log)
+    #jms_sanity(cc_contacts, log)
 
     # Remove PS Members from synchronizations who explicitly
     # unsubscribed
     remove_unsubscribed_contacts(cc_contacts, synchronizations, log)
-    jms_sanity(cc_contacts, log)
+    #jms_sanity(cc_contacts, log)
 
     # Get the union of all source PS members from the synchronizations
     all_sync_ps_members = get_union_of_ps_members(synchronizations, log)
-    jms_sanity(cc_contacts, log)
+    #jms_sanity(cc_contacts, log)
 
     # Find members that do not have corresponding contacts
     # and make any CC Contacts that are needed that do not yet exist
     create_missing_contacts(cc_contacts, all_sync_ps_members, log)
-    jms_sanity(cc_contacts, log)
+    #jms_sanity(cc_contacts, log)
 
     # Now we have contacts (in memory) for every list we need to
     # synchronize.  Resolve all the synchronization PS members to
     # CC contacts.
     compute_sync(synchronizations, cc_contacts, log)
-    jms_sanity(cc_contacts, log)
+    #jms_sanity(cc_contacts, log)
 
-
-
-
-
-
-    
-    log.error("JMS EXIT EARLY")
-    exit(1)
-
-
-
-
-
-
-
-    
     # For any Contacts who are no longer subscribed to any CC lists,
     # mark them to be deleted.
     delete_contacts_with_no_lists(cc_contacts, log)
-    jms_sanity(cc_contacts, log)
+    #jms_sanity(cc_contacts, log)
 
     # We've figured out all the actions we need to take at CC.  Now do
     # all those actions.
     perform_cc_actions(cc_contacts, cc_client_id, cc_access_token, log)
-    jms_sanity(cc_contacts, log)
+    #jms_sanity(cc_contacts, log)
 
     # JMS Should also send an email to someone notifying them of the
     # actions we performed.
