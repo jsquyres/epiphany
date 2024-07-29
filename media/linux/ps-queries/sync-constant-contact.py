@@ -74,8 +74,15 @@ def get_synchronizations(cc_contacts, cc_lists, ps_member_workgroups,
             'target cc list'      : 'SYNC Daily Gospel Reflections',
             'notify'              : f'ps-constantcontact-sync{ecc}',
         },
+        {
+            'source ps member wg' : 'Parish-wide Email',
+            'target cc list'      : 'SYNC Parish-wide Email',
+            'notify'              : f'ps-constantcontact-sync{ecc}',
+        },
     ]
-    bogus = [
+    # JMS Ready to delete, other than keeping this as an example of a
+    # function-based source of PS Members
+    jms_bogus = [
         {
             'source function'     : frtoan_letter_members_fn,
             'target cc list'      : 'SYNC Fr. Toan initial letter',
@@ -100,7 +107,10 @@ def get_synchronizations(cc_contacts, cc_lists, ps_member_workgroups,
                     duid = item['py member duid']
                     member = ps_members[duid]
                     email = member['emailAddress']
-                    members[email] = member
+                    if email:
+                        members[email] = member
+                    else:
+                        log.error(f"PS Member {member['py friendly name FL']} (DUID: {member['memberDUID']}) is in WG {source_wg_name}, but has no PS email address")
 
                 log.info(f'Found: PS Member Workgroup named "{source_wg_name}" with {len(members)} PS Members')
 
@@ -475,7 +485,8 @@ def get_union_of_ps_members(synchronizations, log):
         log.debug(f"- getting PS members for CC list {sync['target cc list']}")
         for member in sync['SOURCE PS MEMBERS'].values():
             email = member['emailAddress']
-            union[email] = member
+            if email:
+                union[email] = member
 
     log.debug(f"Found a total of {len(union)} PS Members for which we need contacts")
     return union
@@ -637,9 +648,8 @@ def perform_cc_actions(cc_contacts, client_id, access_token, log):
 
             if 'create' in actions or 'update' in actions:
                 # We need to update this contact at CC
-                # JMS DON'T DO IT YET
-                #CC.create_or_update_contact(contact, client_id, access_token, log)
                 log.info(f"CC action: create or update: {contact[to_do_key]['actions']}")
+                CC.create_or_update_contact(contact, client_id, access_token, log)
 
             if 'update unsub' in actions:
                 # The CC.create_contact() function will update a bunch
@@ -654,9 +664,8 @@ def perform_cc_actions(cc_contacts, client_id, access_token, log):
                 # NOTE: This will only ever happen to contacts that
                 # already existed at CC.  Contacts that were just
                 # created at CC won't fall down into this block.
-                # JMS DON'T DO IT YET
-                #CC.update_contact_full(contact, client_id, access_token, log)
                 log.info(f"CC action: update unsub: {contact[to_do_key]['actions']}")
+                CC.update_contact_full(contact, client_id, access_token, log)
 
 ####################################################################
 
@@ -719,6 +728,125 @@ def setup_cli_args():
         args.api_key = fp.read().strip()
 
     return args
+
+####################################################################
+
+# JMS Extra work
+def jms_extra(cc_contacts, cc_lists, members, member_workgroups, families, log):
+    results = []
+
+    dgr_list = None
+    dgr_id = None
+    sdgr_list = None
+    sdgr_id = None
+
+    for list in cc_lists:
+        if list['name'] == 'Daily Gospel Reflections':
+            dgr_list = list
+            dgr_id = list['list_id']
+        elif list['name'] == 'SYNC Daily Gospel Reflections':
+            sdgr_list = list
+            sdgr_id = list['list_id']
+
+    ps_dgr_wg = None
+    for wg_id, wg in member_workgroups.items():
+        if wg['name'] == 'Daily Gospel Reflections':
+            ps_dgr_wg = wg
+            break
+    if ps_dgr_wg is None:
+        print("ERROR: Could not find PS DGR WG")
+        exit(1)
+
+    key = 'PS MEMBERS'
+    all_emails = {}
+    for email, contact in dgr_list['CONTACTS'].items():
+        email = email.lower()
+        all_emails[email] = {
+            'contact' : contact,
+            'duids' : [],
+        }
+        if key in contact:
+            for member in contact[key]:
+                all_emails[email]['duids'].append(str(member['memberDUID']))
+
+    ps_dgr_wg_emails = []
+    for entry in ps_dgr_wg['membership']:
+        email = entry['emailAddress']
+        if email:
+            email = email.lower()
+            ps_dgr_wg_emails.append(email)
+            if email not in all_emails:
+                all_emails[email] = {
+                    'duids' : [],
+                }
+            all_emails[email]['wg entry'] = entry
+            duid = str(entry['py member duid'])
+            if duid not in all_emails[email]['duids']:
+                all_emails[email]['duids'].append(duid)
+
+    fields = ['First name', 'Last name', 'Email', 'In CC SYNC DGR', 'In PS DGR WG', 'PS Active', 'PS DUID']
+    filename = 'daily-gospel-reflections-cc-contact-analysis.csv'
+    with open(filename, "w") as fp:
+        writer = csv.DictWriter(fp, fieldnames=fields)
+        writer.writeheader()
+
+        #for email, contact in dgr_list['CONTACTS'].items():
+        for email, data in all_emails.items():
+            contact = None
+            if 'contact' in data:
+                contact = data['contact']
+            wg_entry = None
+            if 'wg entry' in data:
+                wg_entry = data['wg entry']
+
+            # Is this contact also in SYNC DGR?
+            in_cc_sdgr = False
+            if contact and sdgr_id in contact['list_memberships']:
+                in_cc_sdgr = True
+
+            in_ps_sdgr_wg = False
+            if email in ps_dgr_wg_emails:
+                in_ps_sdgr_wg = True
+
+            ps_member_active = ''
+            ps_duid = ', '.join(data['duids'])
+            for duid_str in data['duids']:
+                duid = int(duid_str)
+                member = members[duid]
+                ps_member_active = True
+                if not ParishSoft.member_is_active(member):
+                    ps_member_active = False
+                elif not ParishSoft.family_is_active(member['py family']):
+                    ps_member_active = False
+
+            first = ''
+            if contact and 'first_name' in contact:
+                first = contact['first_name']
+            elif wg_entry:
+                first = wg_entry['firstName']
+
+            last = ''
+            if contact and 'last_name' in contact:
+                last = contact['last_name']
+            elif wg_entry:
+                last = wg_entry['lastName']
+            if contact:
+                log.debug(pformat(contact, depth=2))
+
+            item = {
+                'First name' : first,
+                'Last name' : last,
+                'Email' : email,
+                'In CC SYNC DGR' : in_cc_sdgr,
+                'In PS DGR WG' : in_ps_sdgr_wg,
+                'PS Active' : ps_member_active,
+                'PS DUID' : ps_duid,
+            }
+            writer.writerow(item)
+
+    log.info(f"Wrote {filename}")
+    # JMS Exit early
+    exit(1)
 
 ####################################################################
 
@@ -849,6 +977,9 @@ def main():
 
     # JMS Should also send an email to someone notifying them of the
     # actions we performed.
+
+    # JMS Extra work
+    jms_extra(cc_contacts, cc_lists, members, member_workgroups, families, log)
 
 
 if __name__ == '__main__':
