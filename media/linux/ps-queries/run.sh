@@ -35,6 +35,13 @@ goog_cred_dir=$credential_dir/ps-queries
     --logfile=$google_logfile \
     --debug
 
+cc_logfile=$logfile_dir/linux/sync-constant-contact/sync-cc-logfile.txt
+./sync-constant-contact.py \
+    --ps-api-keyfile $credential_dir/parishsoft-api-key.txt \
+    --ps-cache-dir=$git_base/ps-data \
+    --logfile=$cc_logfile \
+    --debug
+
 ################################################################################
 # Do other things in Google, once a day
 #
