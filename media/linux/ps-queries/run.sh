@@ -36,9 +36,12 @@ goog_cred_dir=$credential_dir/ps-queries
     --debug
 
 cc_logfile=$logfile_dir/linux/sync-constant-contact/sync-cc-logfile.txt
+cc_cred_dir=$goog_cred_dir
 ./sync-constant-contact.py \
     --ps-api-keyfile $credential_dir/parishsoft-api-key.txt \
     --ps-cache-dir=$git_base/ps-data \
+    --cc-client-id $cc_cred_dir/constant-contact-client-id.json \
+    --cc-access-token $cc_cred_dir/constant-contact-access-token.json \
     --logfile=$cc_logfile \
     --debug
 

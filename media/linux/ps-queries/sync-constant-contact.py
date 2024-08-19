@@ -979,7 +979,7 @@ def main():
     # actions we performed.
 
     # JMS Extra work
-    jms_extra(cc_contacts, cc_lists, members, member_workgroups, families, log)
+    #jms_extra(cc_contacts, cc_lists, members, member_workgroups, families, log)
 
 
 if __name__ == '__main__':
