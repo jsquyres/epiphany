@@ -333,7 +333,7 @@ class jotform_class:
 
 last_updated = datetime.datetime.now().strftime('%A %B %d, %Y at %I:%M%p')
 
-jotform = jotform_class('https://form.jotform.com/223634398375163',
+jotform = jotform_class('https://form.jotform.com/241424014484146',
                     _all_ministry_grids)
 
 # These Jotform fields are for the overall Family
