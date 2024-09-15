@@ -194,8 +194,10 @@ def make_jotform_base_url(family, log):
 # This routine constructs #3 (from above)
 def make_ministries_url_portion(member, member_number, log):
     def _check(ministry, member):
-        for member_ministry in member['active_ministries']:
-            if ministry == member_ministry['Description']:
+        # member['py ministries'] is a dict() with the ministry name
+        # as the key
+        for member_ministry in member['py ministries']:
+            if ministry == member_ministry:
                 return True
         return False
 
@@ -221,17 +223,17 @@ def make_ministries_url_portion(member, member_number, log):
         field = grid.member_fields[member_number]
 
         for row_num, row in enumerate(grid.rows):
-            column       = COL_NOT_INVOLVED
-            pds_ministry = row['pds_ministry']
+            column      = COL_NOT_INVOLVED
+            ps_ministry = row['ps_ministry']
 
             match = False
-            if type(pds_ministry) is list:
-                for m in pds_ministry:
+            if type(ps_ministry) is list:
+                for m in ps_ministry:
                     match = _check(m, member)
                     if match:
                         break
             else:
-                match = _check(pds_ministry, member)
+                match = _check(ps_ministry, member)
 
             if match:
                 column = COL_AM_INVOLVED
@@ -274,7 +276,7 @@ def send_family_email(message_body, family, submissions, cookies, smtp, log):
     #message_body = message_initial()
     message_body = message_body.replace("{img}", email_image_url)
     message_body = message_body.replace("{family_names}",
-                        family['hoh_and_spouse_salutation'])
+                             f'{family["firstName"]} {family["lastName"]}')
     message_body = message_body.replace("{bounce_url}", ministry_link)
     message_body = message_body.replace("{family_code}", family['stewardship']['code'])
 
@@ -604,11 +606,11 @@ def write_email_csv(family_list, filename, extra, log):
     csv_extra_family_fields = {
         f'Campaign in CY{stewardship_year-1}' : lambda fam: f"${fam['calculated']['campaign']}" if 'calculated' in fam else 0,
         'Code'                  : lambda fam: fam['stewardship']['code'],
-        'Salulation'            : lambda fam: fam['MailingName'],
-        'Street Address 1'      : lambda fam: fam['StreetAddress1'],
-        'Street Address 2'      : lambda fam: fam['StreetAddress2'],
-        'City/State'            : lambda fam: fam['city_state'],
-        'Zip Code'              : lambda fam: fam['StreetZip'],
+        'Salulation'            : lambda fam: f"{fam['firstname']} {fam['lastName']}",
+        'Street Address 1'      : lambda fam: fam['primaryAddress1'],
+        'Street Address 2'      : lambda fam: fam['primaryAddress2'],
+        'City/State'            : lambda fam: f"{fam['primaryCity']}, {fam['primaryState']}",
+        'Zip Code'              : lambda fam: fam['primaryPostalCode'],
         'Send no mail'          : lambda fam: fam['SendNoMail'],
         'Num Family Members'    : lambda fam: len(fam['py members']),
         'Reason email not sent' : lambda fam: fam['stewardship']['reason not sent'],
@@ -638,7 +640,7 @@ def write_email_csv(family_list, filename, extra, log):
 
             for ff, column in csv_family_fields.items():
                 log.debug(f"Looking for: {ff}")
-                for item in jotform.pre_fill_data['py family']:
+                for item in jotform.pre_fill_data['family']:
                     if item['fields'] == ff:
                         func = item['value_func']
                         value = func(family)

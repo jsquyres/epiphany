@@ -361,10 +361,8 @@ jotform.add_member_pre_fill_data('mduid',
                     lambda mem: mem['memberDUID'],
                     [ f'mduid{i}' for i in range(1, MAX_PS_FAMILY_MEMBER_NUM+1) ])
 jotform.add_member_pre_fill_data('name',
-                    lambda mem: helpers.url_escape(mem['full_name']),
+                    lambda mem: helpers.url_escape(mem['py friendly name FL']),
                     [ f'name{i}' for i in range(1, MAX_PS_FAMILY_MEMBER_NUM+1) ])
-jotform.add_member_pre_fill_data('talent', '',
-                    [ f'talent{i}' for i in range(1, MAX_PS_FAMILY_MEMBER_NUM+1) ])
 jotform.add_member_pre_fill_data('participation',
                     lambda mem: '',
                     [ f'mp{i}' for i in range(1, MAX_PS_FAMILY_MEMBER_NUM+1) ])
