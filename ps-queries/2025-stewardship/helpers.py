@@ -4,6 +4,7 @@
 #
 
 import re
+import urllib
 
 from datetime import datetime
 from datetime import timedelta
@@ -87,7 +88,9 @@ def jotform_text_to_int(val):
 #--------------------------------------------------------------------------
 
 def url_escape(s):
-    return s.replace('\"', '\\"')
+    # JMS Do we need this?
+    #return s.replace('\"', '\\"')
+    return urllib.parse.quote_plus(s)
 
 def pkey_url(env_id):
     return "' {0}".format(str(env_id).strip())

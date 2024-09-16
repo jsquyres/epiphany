@@ -241,7 +241,7 @@ def make_ministries_url_portion(member, member_number, log):
             # If relevant, pre-populate the correct column
             if column != None:
                 url += f"&{field}[{row_num}][{column}]=true"
-                # Example: parishLeadership[1][2]`=true`
+                # Example: parishLeadership[1][2]=true
 
     return url
 
@@ -268,8 +268,8 @@ def send_family_email(message_body, family, submissions, cookies, smtp, log):
     log.info(f"Sending to (OVERRIDE): {smtp_to} (was {was})")
     #---------------------------------------------------------------------
 
-    log.info("    Sending to Family {names} at {emails}"
-             .format(names=' / '.join(data['to_names']), emails=smtp_to))
+    names = ' / '.join(data['to_names'])
+    log.info(f"    Sending to Family {names} at {smtp_to}")
 
     # Note: we can't use the normal string.format() to substitute in
     # values because the HTML/CSS includes a bunch of instances of {}.
@@ -295,8 +295,7 @@ def send_family_email(message_body, family, submissions, cookies, smtp, log):
 
             smtp.send_message(msg)
         except:
-            log.error("==== Error with {email}"
-                      .format(email=smtp_to))
+            log.error(f"==== Error with {smtp_to}")
             log.error(traceback.format_exc())
 
     return len(data['to_addresses'])
@@ -437,6 +436,7 @@ def send_all_family_emails(args, families, member_workgroups, submissions, cooki
 
 #--------------------------------------------------------------------------
 
+# JMS THIS NEEDS TO BE UPDATED FOR MDUIDS
 def send_file_family_emails(args, families, member_workgroups, submissions, cookies, log=None):
     some_families = dict()
 
@@ -450,10 +450,10 @@ def send_file_family_emails(args, families, member_workgroups, submissions, cook
 
     log.debug("Looking for Envelope IDs...")
     for fduid, f in families.items():
+        fname = f'{f["firstName"]} {f["lastName"]}'
         env = f['ParKey'].strip()
         if env in env_ids:
-            log.info("Found Envelope ID {eid} in list (Family: {name})"
-                     .format(eid=env, name=f['Name']))
+            log.info(f"Found Envelope ID {env} in list (Family: {fname})")
             some_families[fduid] = f
 
     return _send_family_emails(args.email_content, some_families,
@@ -474,25 +474,23 @@ def send_submitted_family_emails(args, families, member_workgroups, submissions,
     some_families = dict()
     for fduid, f in families.items():
         want = False
+        fname = f'{f["firstName"]} {f["lastName"]}'
 
         if fduid in submissions:
-            log.info("Family {n} (Family FUID {fduid}) has an electronic submission"
-                    .format(n=f['Name'], fduid=fduid))
+            log.info(f"Family {fname} (Family FUID {fduid}) has an electronic submission")
             want = True
 
         # This keyword trumps everything: we only want to send to
         # people who have electronically submitted.
         if 'status' in f and f['status'] == already_submitted_fam_status:
-            log.info(f"Family {f['Name']} (Family DUID {fduid}) has status {already_submitted_fam_status}")
+            log.info(f"Family {fname} (Family DUID {fduid}) has status {already_submitted_fam_status}")
             want = False
 
         if want:
-            log.info("Submitted family (Family FUID {fduid}): {n}"
-                    .format(n=f['Name'], fduid=fduid))
+            log.info(f"Submitted family (Family FUID {fduid}): {fname}")
             some_families[fduid] = f
         else:
-            log.info("Unsubmitted family (Family DUID {fduid}): {n} -- skipping"
-                    .format(n=f['Name'], fduid=fduid))
+            log.info(f"Unsubmitted family (Family DUID {fduid}): {fname} -- skipping")
 
     return _send_family_emails(args.email_content, some_families,
                                member_workgroups, submissions,
@@ -514,25 +512,23 @@ def send_unsubmitted_family_emails(args, families, member_workgroups, submission
     log.info("Looking for Families with incomplete submissions...")
     some_families = dict()
     for fduid, f in families.items():
+        fname = f'{f["firstName"]} {f["lastName"]}'
         want = False
 
         if fduid not in submissions:
-            log.info("Family {n} (Family DUID {fduid}) no electronic submission"
-                    .format(n=f['Name'], fduid=fduid))
+            log.info(f"Family {fname} (Family DUID {fduid}) no electronic submission")
             want = True
 
         # This keyword trumps everything: if it is set on the Family, they do not get a reminder email.
         if 'status' in f and f['status'] == already_submitted_fam_status:
-            log.info(f"Family {f['Name']} (Family DUID {fduid}) has status {already_submitted_fam_status}")
+            log.info(f"Family {fname} (Family DUID {fduid}) has status {already_submitted_fam_status}")
             want = False
 
         if want:
-            log.info("Unsubmitted family (Family DUID {fduid}): {n}"
-                    .format(n=f['Name'], fduid=fduid))
+            log.info(f"Unsubmitted family (Family DUID {fduid}): {fname}")
             some_families[fduid] = f
         else:
-            log.info("Completed family (Family DUID {fduid}): {n} -- skipping"
-                    .format(n=f['Name'], fduid=fduid))
+            log.info(f"Completed family (Family DUID {fduid}): {fname} -- skipping")
 
     return _send_family_emails(args.email_content, some_families,
                                member_workgroups, submissions,
@@ -544,7 +540,7 @@ def send_some_family_emails(args, families, member_workgroups, submissions, cook
     target = args.email
     some_families = dict()
 
-    log.info("Looking for email addresses: {e}".format(e=target))
+    log.info(f"Looking for email addresses: {target}")
 
     for fduid, f in families.items():
         found = False
@@ -576,8 +572,7 @@ def cookiedb_create(filename, log=None):
     cur.execute(query)
 
     if log:
-        log.debug("Initialized cookie db: {file}"
-                  .format(file=filename))
+        log.debug(f"Initialized cookie db: {filename}")
 
     return cur
 
@@ -586,8 +581,7 @@ def cookiedb_open(filename, log=None):
     cur = conn.cursor()
 
     if log:
-        log.debug("Opened cookie db: {file}"
-                  .format(file=filename))
+        log.debug(f"Opened cookie db: {filename}")
 
     return cur
 
@@ -595,29 +589,26 @@ def cookiedb_open(filename, log=None):
 
 def write_email_csv(family_list, filename, extra, log):
     csv_family_fields = {
-        "parishKey"          : 'Envelope ID',
         "fduid"              : 'FDUID',
         "household"          : 'Household names',
         'email'              : 'Email addresses',
-        "previousPledge"     : '2020 total pledge',
-        "giftsThisYear"      : 'CY2020 giving so far',
     }
 
     csv_extra_family_fields = {
         f'Campaign in CY{stewardship_year-1}' : lambda fam: f"${fam['calculated']['campaign']}" if 'calculated' in fam else 0,
         'Code'                  : lambda fam: fam['stewardship']['code'],
-        'Salulation'            : lambda fam: f"{fam['firstname']} {fam['lastName']}",
+        'Salulation'            : lambda fam: f"{fam['firstName']} {fam['lastName']}",
         'Street Address 1'      : lambda fam: fam['primaryAddress1'],
         'Street Address 2'      : lambda fam: fam['primaryAddress2'],
         'City/State'            : lambda fam: f"{fam['primaryCity']}, {fam['primaryState']}",
         'Zip Code'              : lambda fam: fam['primaryPostalCode'],
-        'Send no mail'          : lambda fam: fam['SendNoMail'],
+        'Send no mail'          : lambda fam: fam['sendNoMail'],
         'Num Family Members'    : lambda fam: len(fam['py members']),
         'Reason email not sent' : lambda fam: fam['stewardship']['reason not sent'],
     }
 
     csv_member_fields = {
-        "mduid"              : 'mduid',
+        "mduid"              : 'MDUID',
         "name"               : 'Name',
     }
 
@@ -675,7 +666,6 @@ def write_code_csv(families, filename, log):
     code_field = f'eStewardship {stewardship_year} code'
     fields = [
         'FDUID',
-        'Envelope ID',
         'Family name',
         code_field,
     ]
@@ -696,9 +686,8 @@ def write_code_csv(families, filename, log):
                 continue
 
             row = {
-                'FDUID' : family['FamRecNum'],
-                'Family name' : family['Name'],
-                'Envelope ID' : f"'{family['ParKey']}",
+                'FDUID' : family['familyDUID'],
+                'Family name' : f"{family['firstName']} {family['lastName']}",
                 code_field : family['stewardship']['code'],
             }
 
@@ -774,6 +763,7 @@ def setup_args():
     group.add_argument('--email',
                         action='append',
                         help='Send only to this email address')
+    # JMS THIS NEEDS TO BE UPDATED FOR MDUIDS
     group.add_argument('--env-id-file',
                         help='Send only to families with envelope IDs in the file')
     group.add_argument('--unsubmitted',
@@ -826,8 +816,7 @@ def setup_args():
 
     # If a database already exists and --append was not specified, barf
     if os.path.exists(args.cookie_db) and not args.append:
-        print("Error: database {db} already exists and --append was not specified"
-              .format(db=args.cookie_db))
+        print(f"Error: database {args.cookie_db} already exists and --append was not specified")
         print("Cowardly refusing to do anything")
         exit(1)
 
@@ -843,8 +832,7 @@ def setup_args():
     # Helper to check if a path exists
     def _check_path(filename):
         if not os.path.exists(filename):
-            print("Error: file '{file}' is not readable"
-                .format(file=filename))
+            print(f"Error: file '{filename}' is not readable")
             exit(1)
 
     # Check to make sure the env ID file is valid

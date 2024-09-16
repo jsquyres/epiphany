@@ -1,3 +1,4 @@
+import urllib
 import datetime
 
 import helpers
@@ -83,15 +84,18 @@ MAX_PS_FAMILY_MEMBER_NUM = 7
 #############################################################################
 
 class ministry_2d_grid:
-    def __init__(self, name, field_prefix, field_max=MAX_PS_FAMILY_MEMBER_NUM):
+    def __init__(self, name, field_prefix, q_prefixes,
+                 field_max=MAX_PS_FAMILY_MEMBER_NUM):
         self.name          = name
         self.rows          = list()
         self.member_fields = list()
         self.field_prefix  = field_prefix
         self.field_max     = field_max
+        self.q_prefixes    = q_prefixes
 
         for i in range(1, field_max + 1):
-            self.member_fields.append(f'{field_prefix}{i}')
+            q_prefix = f'q{q_prefixes[i-1]}_'
+            self.member_fields.append(f'{q_prefix}{field_prefix}{i}')
 
     def add_row(self, ps_ministry, row_heading=None, new=False):
         # If no row_heading is provided, it is the same as the PS ministry name
@@ -118,7 +122,8 @@ _all_ministry_grids = list()
 
 #----------------------------------------------------------------------------
 
-grid = ministry_2d_grid('Parish Leadership', 'pl')
+grid = ministry_2d_grid('Parish Leadership', 'pl',
+                        [65, 108, 135, 162, 189, 216, 243 ])
 
 grid.add_row('100-Parish Pastoral Council')
 grid.add_row('102-Finance Advisory Council')
@@ -140,7 +145,8 @@ _all_ministry_grids.append(grid)
 
 #----------------------------------------------------------------------------
 
-grid = ministry_2d_grid('Administration', 'aa')
+grid = ministry_2d_grid('Administration', 'aa',
+                        [67, 110, 137, 164, 191, 218, 245 ])
 
 grid.add_row('200-Audit Committee')
 grid.add_row('201-Collection Counter')
@@ -160,7 +166,8 @@ _all_ministry_grids.append(grid)
 
 #----------------------------------------------------------------------------
 
-grid = ministry_2d_grid('Liturgical Prepatory', 'lp')
+grid = ministry_2d_grid('Liturgical Prepatory', 'lp',
+                        [68, 112, 139, 166, 193, 220, 247 ])
 
 grid.add_row('300-Art & Environment')
 grid.add_row('301-Audio/Visual/Light Minstry',
@@ -180,7 +187,8 @@ _all_ministry_grids.append(grid)
 
 #----------------------------------------------------------------------------
 
-grid = ministry_2d_grid('Liturgical Celebratory', 'lc')
+grid = ministry_2d_grid('Liturgical Celebratory', 'lc',
+                        [69, 114, 141, 168, 195, 222, 249 ])
 
 grid.add_row('309-Acolytes')
 grid.add_row('310-Adult Choir')
@@ -199,7 +207,8 @@ _all_ministry_grids.append(grid)
 
 #----------------------------------------------------------------------------
 
-grid = ministry_2d_grid('Stewardship & Engagement', 'se')
+grid = ministry_2d_grid('Stewardship & Engagement', 'se',
+                        [70, 116, 143, 170, 197, 224, 251 ])
 
 grid.add_row('401-Epiphany Companions')
 grid.add_row('402-New Members Coffee')
@@ -214,7 +223,8 @@ _all_ministry_grids.append(grid)
 
 #----------------------------------------------------------------------------
 
-grid = ministry_2d_grid('Communication', 'cc')
+grid = ministry_2d_grid('Communication', 'cc',
+                        [271, 285, 286, 287, 288, 289, 290 ])
 
 grid.add_row('452-Media Communications',
              '452-Media Communications Ministry')
@@ -223,7 +233,8 @@ _all_ministry_grids.append(grid)
 
 #----------------------------------------------------------------------------
 
-grid = ministry_2d_grid('Community Care', 'hh')
+grid = ministry_2d_grid('Community Care', 'hh',
+                        [71, 118, 145, 172, 199, 226, 253 ])
 
 grid.add_row('501-Eucharist to Sick&Homebnd',
                 '501-Eucharist to the Sick and Homebound')
@@ -238,7 +249,8 @@ _all_ministry_grids.append(grid)
 
 #----------------------------------------------------------------------------
 
-grid = ministry_2d_grid('Community Life', 'sf')
+grid = ministry_2d_grid('Community Life', 'sf',
+                        [72, 120,  147, 174, 201, 228, 255 ])
 
 grid.add_row('600-Men of Epiphany')
 grid.add_row('601-Sages (for 50 yrs. +)',
@@ -257,7 +269,8 @@ _all_ministry_grids.append(grid)
 
 #----------------------------------------------------------------------------
 
-grid = ministry_2d_grid('Social Responsibility', 'sr')
+grid = ministry_2d_grid('Social Responsibility', 'sr',
+                        [73, 122, 149, 176, 203, 230, 257 ])
 
 grid.add_row('700-Advocates for Common Good',
              '700-Advocates for the Common Good')
@@ -280,7 +293,8 @@ _all_ministry_grids.append(grid)
 
 #----------------------------------------------------------------------------
 
-grid = ministry_2d_grid('Formational', 'ff')
+grid = ministry_2d_grid('Formational', 'ff',
+                        [74, 124, 151, 178, 205, 232, 259 ])
 
 grid.add_row('800-Catechists for Children',
              '800-Children\'s Formation Catechists (PreK-8th)')
@@ -294,7 +308,8 @@ _all_ministry_grids.append(grid)
 
 #----------------------------------------------------------------------------
 
-grid = ministry_2d_grid('Youth Ministires', 'ym')
+grid = ministry_2d_grid('Youth Ministires', 'ym',
+                        [380, 432, 433, 434, 438, 439, 437 ])
 
 grid.add_row('901-Youth Ministry Adult Vols',
              '901-Youth Ministry Adult Volunteers')
@@ -353,8 +368,8 @@ def jf_money_str(val):
         return f'%24{val:.2f}'
 
 jotform.add_family_pre_fill_data('Family name',
-                    lambda fam: f'{fam["firstName"]} {fam["lastName"]}',
-                    'household')
+                    lambda fam: helpers.url_escape(f'{fam["firstName"]} {fam["lastName"]}'),
+                    'householdName')
 
 # These Jotform fields are specific to a Member
 jotform.add_member_pre_fill_data('mduid',
