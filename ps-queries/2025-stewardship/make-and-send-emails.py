@@ -595,7 +595,6 @@ def write_email_csv(family_list, filename, extra, log):
     }
 
     csv_extra_family_fields = {
-        f'Campaign in CY{stewardship_year-1}' : lambda fam: f"${fam['calculated']['campaign']}" if 'calculated' in fam else 0,
         'Code'                  : lambda fam: fam['stewardship']['code'],
         'Salulation'            : lambda fam: f"{fam['firstName']} {fam['lastName']}",
         'Street Address 1'      : lambda fam: fam['primaryAddress1'],
@@ -754,6 +753,32 @@ def setup_google(args, log):
 
 ###########################################################################
 
+def process_pledge_data(filename, families, log):
+    def _safe_float(s):
+        s = s.strip()
+        if len(s) == 0:
+            return 0
+        return float(s)
+
+    key = 'calculated'
+    log.info(f"Reading pledge data from {filename}")
+    with open(filename) as fp:
+        csvreader = csv.DictReader(fp)
+        for row in csvreader:
+            duid = int(row['Member/ Family ID'])
+            if duid not in families:
+                continue
+
+            pledged = _safe_float(row['Current Pledge Amount'])
+            gifts = _safe_float(row['Total Paid'])
+
+            families[duid][key] = {
+                'pledged' : pledged,
+                'gifts' : gifts,
+            }
+
+###########################################################################
+
 def setup_args():
     # These options control which emails are sent.
     # You can only use one of these options at a time.
@@ -773,6 +798,10 @@ def setup_args():
     group.add_argument('--submitted',
                         action='store_true',
                         help='Send only to families who have already submitted all their data')
+
+    tools.argparser.add_argument('--pledge-data',
+                                 required=True,
+                                 help='File containing previous year pledge info')
 
     tools.argparser.add_argument('--do-not-send',
                                 action='store_true',
@@ -838,6 +867,9 @@ def setup_args():
     # Check to make sure the env ID file is valid
     if args.env_id_file:
         _check_path(args.env_id_file)
+
+    # Check to make sure pledge data file is valid
+    _check_path(args.pledge_data)
 
     # Check to make sure the email content file is valid
     _check_path(args.email_content)
@@ -909,6 +941,9 @@ def main():
     else:
         func = cookiedb_open
     cookies = func(args.cookie_db)
+
+    # Load pledge data
+    process_pledge_data(args.pledge_data, families, log)
 
     # Send the desired emails
     if args.all:

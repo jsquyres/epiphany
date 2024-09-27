@@ -137,9 +137,8 @@ grid.add_row('110-Ten Percent Committee')
 grid.add_row('111-Hispanic Ministry Team')
 grid.add_row('113-Media Comms Planning Comm.'
              '113-Media Communications Planning Committee')
-grid.add_row('114-Marriage Mentor Couples', new=True)
-grid.add_row('115-Parish Life Committee', new=True)
-grid.add_row('116-Youth Council', new=True)
+grid.add_row('115-Community Care Committee')
+grid.add_row('116-Youth Council')
 
 _all_ministry_grids.append(grid)
 
@@ -155,8 +154,6 @@ grid.add_row('202-Facility Mgmt & Planning',
 grid.add_row('203-Garden & Grounds',
              '203-Gardens & Grounds')
 grid.add_row('204-Parish Office Volunteers')
-grid.add_row('205-Participation Sheet Vol',
-                '205-Participation Sheet Volunteers')
 grid.add_row('206-Space Arrangers')
 grid.add_row('207-Technology Committee')
 grid.add_row('208-Weekend Closer',
@@ -201,7 +198,6 @@ grid.add_row('317-Instrumentalists & Cantors')
 grid.add_row('318-Lectors')
 grid.add_row('319-Liturgical Dance Ministry',
              '319-Liturgical Dance')
-grid.add_row('321-Prayer Chain Ministry')
 
 _all_ministry_grids.append(grid)
 
@@ -211,13 +207,16 @@ grid = ministry_2d_grid('Stewardship & Engagement', 'se',
                         [70, 116, 143, 170, 197, 224, 251 ])
 
 grid.add_row('401-Epiphany Companions')
-grid.add_row('402-New Members Coffee')
 grid.add_row('404-Welcome Desk')
 grid.add_row('406-Evangelization Team')
 grid.add_row('407-Stewardship Team')
 grid.add_row('408-Engagement Team')
 grid.add_row('409-Sunday Morning Coffee',
              '409-Sunday Morning Coffee Workers')
+grid.add_row('410-Epiphany Flower Guild', new=True)
+grid.add_row('411-Men of Epiphany')
+grid.add_row('412-Sages (for 50 yrs. +)')
+grid.add_row('413-Singles Explore Life (SEL)')
 
 _all_ministry_grids.append(grid)
 
@@ -236,34 +235,17 @@ _all_ministry_grids.append(grid)
 grid = ministry_2d_grid('Community Care', 'hh',
                         [71, 118, 145, 172, 199, 226, 253 ])
 
+grid.add_row('500-Bereavement Receptions')
 grid.add_row('501-Eucharist to Sick&Homebnd',
                 '501-Eucharist to the Sick and Homebound')
 grid.add_row('505-Healing Blanket Ministry')
 grid.add_row('508-Messages of Hope Ministry')
-grid.add_row('509-HOPE Support Groups', new=True)
+grid.add_row('509-HOPE Support Groups')
 grid.add_row('509-Flower Delivery to SHB',
-             '510-Flower Delivery to the Sick, Homebound, & Bereaved',
-             new=True)
-
-_all_ministry_grids.append(grid)
-
-#----------------------------------------------------------------------------
-
-grid = ministry_2d_grid('Community Life', 'sf',
-                        [72, 120,  147, 174, 201, 228, 255 ])
-
-grid.add_row('600-Men of Epiphany')
-grid.add_row('601-Sages (for 50 yrs. +)',
-                '601-Sages')
-grid.add_row('602-Singles Explore Life (SEL)',
-             '602-Singles Explore Life')
-grid.add_row('604-Wednesdays for Women')
-grid.add_row('609-Octoberfest Plan Team 2022',
-             '609-OctoberFest Plan Team')
-grid.add_row('611-Bereavement Receptions',
-             '611-Bereavement Reception')
-grid.add_row('612-Community Life Committee',
-             '612-Community Life Ministry')
+             '510-Flower Delivery to the Sick, Homebound, & Bereaved')
+grid.add_row('511-Prayer Chain Ministry')
+grid.add_row('512-Health & Wellness Ministry', new=True)
+grid.add_row('513-Blessing Card Ministry', new=True)
 
 _all_ministry_grids.append(grid)
 
@@ -284,10 +266,7 @@ grid.add_row('707-St. Vincent de Paul',
              '707-St. Vincent de Paul - Epiphany Conference')
 grid.add_row('709-Twinning Committee:Chiapas',
              '709-Twinning Committee: Chiapas')
-grid.add_row('710-Environmental Concerns',
-             '710-Environmental Concerns Committee')
-grid.add_row('712-Legislative Network',
-             '712-Epiphany Legislative Network')
+grid.add_row('710-Creation Care Team')
 
 _all_ministry_grids.append(grid)
 
@@ -303,6 +282,8 @@ grid.add_row('805-Monday Adult Bible Study')
 grid.add_row('807-Catechumenate/InitiationTm',
              '807-Catechumenate / Initiation Team')
 grid.add_row('808-BibleTimes Core Team')
+grid.add_row('809-Marriage Mentor Couples')
+grid.add_row('810-Wednesdays for Women')
 
 _all_ministry_grids.append(grid)
 
@@ -366,6 +347,13 @@ def jf_money_str(val):
         return f'%24{val}'
     else:
         return f'%24{val:.2f}'
+
+jotform.add_family_pre_fill_data('Family annual pledge for stewardship_year-1',
+                    lambda fam: jf_money_str(fam['calculated']['pledged']) if 'calculated' in fam else "%240",
+                    'previousPledge')
+jotform.add_family_pre_fill_data('Family contributed so far in stewardship_year-1',
+                    lambda fam: jf_money_str(fam['calculated']['gifts']) if 'calculated' in fam else "%240",
+                    'giftsThisYear_fmt')
 
 jotform.add_family_pre_fill_data('Family name',
                     lambda fam: helpers.url_escape(f'{fam["firstName"]} {fam["lastName"]}'),
