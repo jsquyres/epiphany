@@ -49,7 +49,7 @@ guser_cred_file = 'user-credentials.json'
 
 # Copied from the Google Spreadsheet where Jotform is writing its
 # results
-jotform_gsheet_gfile_id = '1Mg1vfxZEKdPU7EwyU2irE-R0NRpMAVcJij9zQ4eVpaU'
+jotform_gsheet_gfile_id = '151pGPqp1wdHp3uJVAmkJ5MxMwGjm3oqp3Ost6LnqCFs'
 
 # Last year's Jotform Gsheet results
 #
