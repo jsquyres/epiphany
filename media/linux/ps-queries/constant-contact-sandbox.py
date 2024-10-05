@@ -63,7 +63,7 @@ def find_ps_members(contact, ps_members, log):
         if member['emailAddress'] == email_address:
             matches.append(member)
 
-    log.debug("FOUND {len(matches)} PS members with email address {email_address}")
+    log.debug(f"FOUND {len(matches)} PS members with email address {email_address}")
     return matches
 
 def link_cc_contacts_to_ps_members(cc_contacts,
