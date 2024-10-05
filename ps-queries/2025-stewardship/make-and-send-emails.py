@@ -353,7 +353,7 @@ def _send_family_emails(message_body, families, member_workgroups, submissions, 
                 family['stewardship']['sent_email'] = False
                 family['stewardship']['reason not sent'] = 'Too many Members in Family'
                 if log:
-                    log.info(f"    *** Too many Members in Family ({len(family['members'])} > {MAX_PS_FAMILY_MEMBER_NUM}) -- will not send")
+                    log.info(f"    *** Too many Members in Family ({len(family['py members'])} > {MAX_PS_FAMILY_MEMBER_NUM}) -- will not send")
 
                 # This family will not be processed by Jotform.  So we skip
                 # this family.
@@ -589,7 +589,7 @@ def cookiedb_open(filename, log=None):
 
 def write_email_csv(family_list, filename, extra, log):
     csv_family_fields = {
-        "fduid"              : 'fduid',
+        "fduid"              : 'Family DUID',
         "household"          : 'Household names',
         'email'              : 'Email addresses',
     }
@@ -607,7 +607,7 @@ def write_email_csv(family_list, filename, extra, log):
     }
 
     csv_member_fields = {
-        "mduid"              : 'MDUID',
+        "mduid"              : 'Member DUID',
         "name"               : 'Name',
     }
 
@@ -664,7 +664,7 @@ def write_email_csv(family_list, filename, extra, log):
 def write_code_csv(families, filename, log):
     code_field = f'eStewardship {stewardship_year} code'
     fields = [
-        'fduid',
+        'Family DUID',
         'Family name',
         code_field,
     ]
@@ -685,7 +685,7 @@ def write_code_csv(families, filename, log):
                 continue
 
             row = {
-                'fduid' : family['familyDUID'],
+                'Family DUID' : family['familyDUID'],
                 'Family name' : f"{family['firstName']} {family['lastName']}",
                 code_field : family['stewardship']['code'],
             }
