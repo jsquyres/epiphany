@@ -740,6 +740,7 @@ def jms_extra(cc_contacts, cc_lists, members, member_workgroups, families, log):
     sdgr_list = None
     sdgr_id = None
 
+    # Find both CC lists
     for list in cc_lists:
         if list['name'] == 'Daily Gospel Reflections':
             dgr_list = list
@@ -748,6 +749,7 @@ def jms_extra(cc_contacts, cc_lists, members, member_workgroups, families, log):
             sdgr_list = list
             sdgr_id = list['list_id']
 
+    # Find PS DGR workgroup
     ps_dgr_wg = None
     for wg_id, wg in member_workgroups.items():
         if wg['name'] == 'Daily Gospel Reflections':
@@ -757,56 +759,80 @@ def jms_extra(cc_contacts, cc_lists, members, member_workgroups, families, log):
         print("ERROR: Could not find PS DGR WG")
         exit(1)
 
+    # For each CC DGR contact
+    # 1. Add them to all_emails
+    # 2. Make a list of PS DUIDs corresponding to PS Members
     key = 'PS MEMBERS'
     all_emails = {}
     for email, contact in dgr_list['CONTACTS'].items():
-        email = email.lower()
+        email = email.lower().strip()
         all_emails[email] = {
-            'contact' : contact,
             'duids' : [],
         }
+        all_emails[email]['dgr contact'] = contact
+
         if key in contact:
             for member in contact[key]:
                 all_emails[email]['duids'].append(str(member['memberDUID']))
 
+    # Do the same thing for the CC SYNC DGR list
+    for email, contact in sdgr_list['CONTACTS'].items():
+        email = email.lower().strip()
+        if email not in all_emails:
+            all_emails[email] = {
+                'duids' : [],
+            }
+        all_emails[email]['sdgr contact'] = contact
+
+        if key in contact:
+            for member in contact[key]:
+                all_emails[email]['duids'].append(str(member['memberDUID']))
+
+    # For each PS DGR WorkGroup member:
+    # 1. Add them to all_emails
+    # 2. Add their email address to a list
     ps_dgr_wg_emails = []
     for entry in ps_dgr_wg['membership']:
         email = entry['emailAddress']
         if email:
-            email = email.lower()
+            email = email.lower().strip()
             ps_dgr_wg_emails.append(email)
             if email not in all_emails:
                 all_emails[email] = {
                     'duids' : [],
                 }
             all_emails[email]['wg entry'] = entry
+
             duid = str(entry['py member duid'])
             if duid not in all_emails[email]['duids']:
                 all_emails[email]['duids'].append(duid)
 
-    fields = ['First name', 'Last name', 'Email', 'In CC SYNC DGR', 'In PS DGR WG', 'PS Active', 'PS DUID']
+    fields = ['First name', 'Last name', 'Email', 'In CC DGR',
+              'In CC SYNC DGR', 'In PS DGR WG', 'PS Active', 'PS DUID']
     filename = 'daily-gospel-reflections-cc-contact-analysis.csv'
     with open(filename, "w") as fp:
         writer = csv.DictWriter(fp, fieldnames=fields)
         writer.writeheader()
 
-        #for email, contact in dgr_list['CONTACTS'].items():
         for email, data in all_emails.items():
             contact = None
-            if 'contact' in data:
-                contact = data['contact']
-            wg_entry = None
-            if 'wg entry' in data:
-                wg_entry = data['wg entry']
+            in_cc_dgr = False
+            if 'dgr contact' in data:
+                in_cc_dgr = True
+                contact = data['dgr contact']
 
-            # Is this contact also in SYNC DGR?
             in_cc_sdgr = False
-            if contact and sdgr_id in contact['list_memberships']:
+            if 'sdgr contact' in data:
                 in_cc_sdgr = True
+                # Contact is the same between dgr and sdgr; doesn't
+                # matter if we overwrite it
+                contact = data['sdgr contact']
 
+            wg_entry = None
             in_ps_sdgr_wg = False
-            if email in ps_dgr_wg_emails:
+            if 'wg entry' in data:
                 in_ps_sdgr_wg = True
+                wg_entry = data['wg entry']
 
             ps_member_active = ''
             ps_duid = ', '.join(data['duids'])
@@ -837,6 +863,7 @@ def jms_extra(cc_contacts, cc_lists, members, member_workgroups, families, log):
                 'First name' : first,
                 'Last name' : last,
                 'Email' : email,
+                'In CC DGR' : in_cc_dgr,
                 'In CC SYNC DGR' : in_cc_sdgr,
                 'In PS DGR WG' : in_ps_sdgr_wg,
                 'PS Active' : ps_member_active,
@@ -923,6 +950,10 @@ def main():
 
     #jms_sanity(cc_contacts, log)
 
+    # JMS Extra work
+    jms_extra(cc_contacts, cc_lists, members, member_workgroups, families, log)
+    exit(1)
+
     #----------------------------------------
 
     # Link Constant Contact Contacts to ParishSoft Members by the
@@ -977,10 +1008,6 @@ def main():
 
     # JMS Should also send an email to someone notifying them of the
     # actions we performed.
-
-    # JMS Extra work
-    #jms_extra(cc_contacts, cc_lists, members, member_workgroups, families, log)
-
 
 if __name__ == '__main__':
     main()
