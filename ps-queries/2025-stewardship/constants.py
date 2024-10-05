@@ -52,10 +52,14 @@ guser_cred_file = 'user-credentials.json'
 jotform_gsheet_gfile_id = '1Mg1vfxZEKdPU7EwyU2irE-R0NRpMAVcJij9zQ4eVpaU'
 
 # Last year's Jotform Gsheet results
-from constants_prev_year import jotform_gsheet_gfile_id as \
-    jotform_gsheet_prev_year_gfile_id
-from constants_prev_year import jotform_gsheet_columns as \
-    jotform_gsheet_prev_year_columns
+#
+# Only load this if we're actually "constants.py" (as opposed to being
+# named -- via sym link -- "constants_prev_year.py")
+if __file__ == "constants.py":
+    from constants_prev_year import jotform_gsheet_gfile_id as \
+        jotform_gsheet_prev_year_gfile_id
+    from constants_prev_year import jotform_gsheet_columns as \
+        jotform_gsheet_prev_year_columns
 
 # Team Drive folder where to upload the CSV/spreadsheet comparison
 # output files
@@ -333,9 +337,9 @@ jotform = jotform_class('https://form.jotform.com/241424014484146',
                     _all_ministry_grids)
 
 # These Jotform fields are for the overall Family
-jotform.add_family_pre_fill_data('FDUID',
+jotform.add_family_pre_fill_data('fduid',
                     lambda fam: fam['familyDUID'],
-                    'FDUID')
+                    'fduid')
 jotform.add_family_pre_fill_data('Emails for Jotform to send response to',
                     lambda fam: ','.join(fam['stewardship']['to_addresses']),
                     'email')
@@ -384,7 +388,7 @@ jotform_gsheet_columns['prelude'] = [
     'SubmitDate',
     'LastUpdate',
     # This is where our fields start
-    'FDUID',
+    'fduid',
     'Emails to reply to',
     'Spiritual participation',
 ]

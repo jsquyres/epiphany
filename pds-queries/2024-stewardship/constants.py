@@ -47,10 +47,14 @@ guser_cred_file = 'user-credentials.json'
 jotform_gsheet_gfile_id = '10iYPP4AZcRVRLf6Ql2nuPMD8cO_D9OmLR1MBt-iNAeA'
 
 # Last year's Jotform Gsheet results
-from constants_prev_year import jotform_gsheet_gfile_id as \
-    jotform_gsheet_prev_year_gfile_id
-from constants_prev_year import jotform_gsheet_columns as \
-    jotform_gsheet_prev_year_columns
+#
+# Only load this if we're actually "constants.py" (as opposed to being
+# named -- via sym link -- "constants_prev_year.py")
+if __file__ == "constants.py":
+    from constants_prev_year import jotform_gsheet_gfile_id as \
+        jotform_gsheet_prev_year_gfile_id
+    from constants_prev_year import jotform_gsheet_columns as \
+        jotform_gsheet_prev_year_columns
 
 # Team Drive folder where to upload the CSV/spreadsheet comparison
 # output files

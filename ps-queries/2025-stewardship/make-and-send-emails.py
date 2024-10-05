@@ -384,7 +384,7 @@ def _send_family_emails(message_body, families, member_workgroups, submissions, 
                 family['stewardship']['sent_email'] = False
                 family['stewardship']['reason not sent'] = 'Could not find relevant emails for Family'
                 if log:
-                    log.info(f"    *** Have no HoH/Spouse emails for Family {family['Name']}")
+                    log.info(f"    *** Have no HoH/Spouse emails for Family {family['firstName']} {family['lastName']}")
 
                 # Note that we fall through and still process this family, even
                 # though we won't send them an email (because they might get
@@ -589,7 +589,7 @@ def cookiedb_open(filename, log=None):
 
 def write_email_csv(family_list, filename, extra, log):
     csv_family_fields = {
-        "fduid"              : 'FDUID',
+        "fduid"              : 'fduid',
         "household"          : 'Household names',
         'email'              : 'Email addresses',
     }
@@ -664,7 +664,7 @@ def write_email_csv(family_list, filename, extra, log):
 def write_code_csv(families, filename, log):
     code_field = f'eStewardship {stewardship_year} code'
     fields = [
-        'FDUID',
+        'fduid',
         'Family name',
         code_field,
     ]
@@ -685,7 +685,7 @@ def write_code_csv(families, filename, log):
                 continue
 
             row = {
-                'FDUID' : family['familyDUID'],
+                'fduid' : family['familyDUID'],
                 'Family name' : f"{family['firstName']} {family['lastName']}",
                 code_field : family['stewardship']['code'],
             }
@@ -788,7 +788,7 @@ def setup_args():
     group.add_argument('--email',
                         action='append',
                         help='Send only to this email address')
-    # JMS THIS NEEDS TO BE UPDATED FOR MDUIDS
+    # JMS THIS NEEDS TO BE UPDATED FOR MDUIDS / FDUIDS
     group.add_argument('--env-id-file',
                         help='Send only to families with envelope IDs in the file')
     group.add_argument('--unsubmitted',
