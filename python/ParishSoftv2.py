@@ -823,6 +823,20 @@ def family_is_parishioner(family, org_id=None):
 
 #-----------------------------------------------------------------------------
 
+# Get a dict of Members in a Family who are one of a specific set of
+# Roles
+def get_family_heads(family):
+    heads = {}
+    target_roles = ['Head', 'Husband', 'Wife']
+    for member in family['py members']:
+        if member['memberType'] in target_roles:
+            mduid = member['memberDUID']
+            heads[mduid] = member
+
+    return heads
+
+#-----------------------------------------------------------------------------
+
 # Return a list of emails:
 #
 # 1. Find all Members in the Family in a specific Member WorkGroup,
@@ -865,15 +879,14 @@ def _family_wg_emails_internal(family, member_workgroups, name, log):
     # 2. If we didn't find good info in the previous step, look for
     # any Members in the Family with Head, Husband, or Wife as their
     # Role.
-    target_roles = ['Head', 'Husband', 'Wife']
-    for member in family['py members']:
+    heads = get_family_heads(family)
+    for memember in heads.values():
         e = member['emailAddress']
         if not e:
             continue
 
-        if member['memberType'] in target_roles:
-            emails[e] = True
-            members.append(member)
+        emails[e] = True
+        members.append(member)
 
     if len(emails) > 0:
         return members, list(emails.keys())

@@ -6,12 +6,10 @@ import sys
 import csv
 import uuid
 import time
-import smtplib
 import sqlite3
 import datetime
 import calendar
 import argparse
-import traceback
 
 # We assume that there is a "ecc-python-modules" sym link in this
 # directory that points to the directory with ECC.py and friends.
@@ -20,10 +18,17 @@ if not os.path.exists(moddir):
     print("ERROR: Could not find the ecc-python-modules directory.")
     print("ERROR: Please make a ecc-python-modules sym link and run again.")
     exit(1)
+# On MS Windows, git checks out sym links as a file with a single-line
+# string containing the name of the file that the sym link points to.
+if os.path.isfile(moddir):
+    with open(moddir) as fp:
+        dir = fp.readlines()
+    moddir = os.path.join(os.getcwd(), dir[0])
 
 sys.path.insert(0, moddir)
 
 import ECC
+import ECCEmailer
 import Google
 import GoogleAuth
 import ParishSoftv2 as ParishSoft
@@ -39,7 +44,8 @@ from email.message import EmailMessage
 
 import helpers
 
-from constants import already_submitted_fam_status
+from constants import stewardship_fam_cur_year_wg
+from constants import stewardship_fam_prev_year_wg
 
 from constants import gapp_id
 from constants import guser_cred_file
@@ -285,18 +291,9 @@ def send_family_email(message_body, family, submissions, cookies, smtp, log):
     if args.do_not_send:
         log.info("NOT SENDING EMAIL (--do-not-send)")
     else:
-        try:
-            msg = EmailMessage()
-            msg['Subject'] = smtp_subject
-            msg['From'] = smtp_from
-            msg['To'] = smtp_to
-            msg.set_content(message_body)
-            msg.replace_header('Content-Type', 'text/html')
-
-            smtp.send_message(msg)
-        except:
-            log.error(f"==== Error with {smtp_to}")
-            log.error(traceback.format_exc())
+        ECCEmailer.send_email_existing_smtp(message_body, 'html', None,
+                                            smtp_to, smtp_subject, smtp_from,
+                                            smtp, log)
 
     return len(data['to_addresses'])
 
@@ -311,20 +308,8 @@ def _send_family_emails(message_body, families, member_workgroups, submissions, 
     email_sent = list()
     email_not_sent = list()
 
-    # This assumes that the file has a single line in the format of username:password.
-    with open(args.smtp_auth_file) as f:
-        line = f.read()
-        smtp_username, smtp_password = line.split(':')
-
     # Open just one connection to the SMTP server
-    with smtplib.SMTP_SSL(host=smtp_server,
-                          local_hostname='api.epiphanycatholicchurch.org') as smtp:
-        # Login; we can't rely on being IP whitelisted.
-        try:
-            smtp.login(smtp_username, smtp_password)
-        except Exception as e:
-            log.error(f'Error: failed to SMTP login: {e}')
-            exit(1)
+    with ECCEmailer.open_smtp_connection(args.smtp_auth_file, log) as smtp:
 
         # Iterate through all the family emails that we need to send
         sorted_fduids = sorted(families)
@@ -430,14 +415,25 @@ def _send_family_emails(message_body, families, member_workgroups, submissions, 
 
 ###########################################################################
 
-def send_all_family_emails(args, families, member_workgroups, submissions, cookies, log=None):
+def send_all_family_emails(args, families, member_workgroups, family_workgroups,
+                           submissions, cookies, log=None):
     return _send_family_emails(args.email_content, families, member_workgroups,
                                submissions, cookies, log)
 
 #--------------------------------------------------------------------------
 
 # JMS THIS NEEDS TO BE UPDATED FOR MDUIDS
-def send_file_family_emails(args, families, member_workgroups, submissions, cookies, log=None):
+def send_file_family_emails(args, families, member_workgroups, family_workgroups,
+                            submissions, cookies, log=None):
+
+
+
+    log.error("JMS This function needs to be updated for MDUIDs")
+    log.error("JMS Exiting early")
+    exit(1)
+
+
+
     some_families = dict()
 
     log.info("Reading Envelope ID file...")
@@ -462,29 +458,35 @@ def send_file_family_emails(args, families, member_workgroups, submissions, cook
 
 #--------------------------------------------------------------------------
 
-def send_submitted_family_emails(args, families, member_workgroups, submissions, cookies, log=None):
-    # Find all families that have *completely* submitted everything.
-    #
-    # Then also remove any Family that has "{year} Stewardship" set as
-    # their Family status.  This means that someone manually put this
-    # keyword on the Family, probably indicating that they have
-    # submitted their stewardship data on paper.
+def _find_fam_wg(family_workgroups, name):
+    for family_wg in family_workgroups:
+        if family_wg['name'] == name:
+            return family_wg
+    return None
 
-    log.info("Looking for Families with incomplete submissions...")
+def send_submitted_family_emails(args, families, member_workgroups, family_workgroups,
+                                 submissions, cookies, log=None):
+    # Find all families that have a valid Jotform submission or are in
+    # the Family Workgroup for this year's Stewardship.
+    log.info(f"Looking for Families with a Jotform submission or are in the PS Workgroup '{stewardship_cur_year_wg}'")
+
+    family_wg = _find_fam_wg(family_workgroups,
+                             stewardship_cur_year_wg)
+
     some_families = dict()
     for fduid, f in families.items():
         want = False
         fname = f'{f["firstName"]} {f["lastName"]}'
 
+        # Does the Family have a Jotform submission?
         if fduid in submissions:
             log.info(f"Family {fname} (Family FUID {fduid}) has an electronic submission")
             want = True
 
-        # This keyword trumps everything: we only want to send to
-        # people who have electronically submitted.
-        if 'status' in f and f['status'] == already_submitted_fam_status:
-            log.info(f"Family {fname} (Family DUID {fduid}) has status {already_submitted_fam_status}")
-            want = False
+        # Is the Family in the designated WG?
+        for entry in family_wg:
+            if entry['familyId'] == fduid:
+                want = True
 
         if want:
             log.info(f"Submitted family (Family FUID {fduid}): {fname}")
@@ -498,31 +500,30 @@ def send_submitted_family_emails(args, families, member_workgroups, submissions,
 
 #--------------------------------------------------------------------------
 
-def send_unsubmitted_family_emails(args, families, member_workgroups, submissions, cookies, log=None):
-    # Find all families that have not *completely* submitted everything.
-    # I.e., any family that has not yet submitted:
-    # - all Family Member ministry forms
-    # - a Family pledge form
-    #
-    # Then also remove any Family that has "{year} Stewardship" set as
-    # their Family status.  This means that someone manually put this
-    # keyword on the Family, probably indicating that they have
-    # submitted their stewardship data on paper.
+def send_unsubmitted_family_emails(args, families, member_workgroups, family_workgroups,
+                                   submissions, cookies, log=None):
+    # Find all families that do not have a valid Jotform submission
+    # and are not in the Family Workgroup for this year's Stewardship.
+    log.info(f"Looking for Families without a Jotform submission and are not in the PS Workgroup '{stewardship_cur_year_wg}'")
 
-    log.info("Looking for Families with incomplete submissions...")
+    family_wg = _find_fam_wg(family_workgroups,
+                             stewardship_cur_year_wg)
+
     some_families = dict()
     for fduid, f in families.items():
         fname = f'{f["firstName"]} {f["lastName"]}'
         want = False
 
+        # If the Family has no Jotform submission, we want them!
         if fduid not in submissions:
             log.info(f"Family {fname} (Family DUID {fduid}) no electronic submission")
             want = True
 
-        # This keyword trumps everything: if it is set on the Family, they do not get a reminder email.
-        if 'status' in f and f['status'] == already_submitted_fam_status:
-            log.info(f"Family {fname} (Family DUID {fduid}) has status {already_submitted_fam_status}")
-            want = False
+        # If the Family is in the designated Family WG, then we don't
+        # want them
+        for entry in family_wg:
+            if entry['familyId'] == fduid:
+                want = False
 
         if want:
             log.info(f"Unsubmitted family (Family DUID {fduid}): {fname}")
@@ -536,7 +537,8 @@ def send_unsubmitted_family_emails(args, families, member_workgroups, submission
 
 #--------------------------------------------------------------------------
 
-def send_some_family_emails(args, families, member_workgroups, submissions, cookies, log=None):
+def send_some_family_emails(args, families, member_workgroups, family_workgroups,
+                            submissions, cookies, log=None):
     target = args.email
     some_families = dict()
 
@@ -920,6 +922,7 @@ def main():
     # We need Google if the email content contains a *_reminder template
     # (i.e., we need to login to Google and download some data)
     if need_google:
+        # Submissions is a dictionary indexed by Family DUID
         submissions = setup_google(args, log=log)
     else:
         submissions = dict()
@@ -957,7 +960,7 @@ def main():
     else:
         func = send_some_family_emails
 
-    sent, not_sent = func(args, families, member_workgroups,
+    sent, not_sent = func(args, families, member_workgroups, family_workgroups,
                           submissions, cookies, log)
 
     # Record who/what we sent

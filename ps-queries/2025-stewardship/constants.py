@@ -1,3 +1,4 @@
+import os
 import urllib
 import datetime
 
@@ -23,10 +24,10 @@ smtp_from    = f'"Epiphany Catholic Church" <stewardship-{stewardship_year}@epip
 
 #--------------------------------------------------------------------------
 
-# Already submitted ParishSoft Family Status
+# Submitted eStewardship in prior year
 
-already_submitted_fam_status = f'{stewardship_year} Stewardship'
-already_submitted_fam_keyword = f'Active: Stewardship {stewardship_year}'
+stewardship_fam_cur_year_wg = f'Active: Stewardship {stewardship_year}'
+stewardship_fam_prev_year_wg = f'Active: Stewardship {stewardship_year-1}'
 
 # ParishSoft Member Workgroup names
 
@@ -55,11 +56,13 @@ jotform_gsheet_gfile_id = '151pGPqp1wdHp3uJVAmkJ5MxMwGjm3oqp3Ost6LnqCFs'
 #
 # Only load this if we're actually "constants.py" (as opposed to being
 # named -- via sym link -- "constants_prev_year.py")
-if __file__ == "constants.py":
+if os.path.basename(__file__) == "constants.py":
     from constants_prev_year import jotform_gsheet_gfile_id as \
         jotform_gsheet_prev_year_gfile_id
     from constants_prev_year import jotform_gsheet_columns as \
         jotform_gsheet_prev_year_columns
+else:
+    print(f"File is: {__file__}")
 
 # Team Drive folder where to upload the CSV/spreadsheet comparison
 # output files
@@ -386,7 +389,6 @@ jotform_gsheet_columns = dict()
 jotform_gsheet_columns['prelude'] = [
     # This is put here by Jotform automatically
     'SubmitDate',
-    'LastUpdate',
     # This is where our fields start
     'fduid',
     'Emails to reply to',
@@ -397,10 +399,17 @@ jotform_gsheet_columns['prelude'] = [
 
 max_number = MAX_PS_FAMILY_MEMBER_NUM
 
+jotform_gsheet_columns['per-member epilog'] = [
+    'member special talent',
+    'member group prayer events',
+    'member small prayer group',
+    'member protect',
+]
+
 jotform_gsheet_columns['members'] = list()
 for member_num in range(1, max_number+1):
     member_columns = list()
-    # Add the per-member columns (E.g., MID, name)
+    # Add the per-member columns (E.g., MDUID, name)
     for data in jotform.pre_fill_data['per_member']:
         member_columns.append(data['fields'][member_num - 1])
 
@@ -413,12 +422,18 @@ for member_num in range(1, max_number+1):
 
             row['jotform_columns'].append(column_name)
 
+    # Add the per-member ministry epilog columns
+    for col in jotform_gsheet_columns['per-member epilog']:
+        member_columns.append(f'{col} {member_num}')
+
     jotform_gsheet_columns['members'].append(member_columns)
 
 #--------------------------------------------------------------------------
 
 jotform_gsheet_columns['family'] = [
     'Family names',
+    f'CY{stewardship_year-1} pledge',
+    f'CY{stewardship_year-1} gifts',
     f'CY{stewardship_year} participation',
     f'CY{stewardship_year} whole year pledge',
     f'CY{stewardship_year} how fullfill',
@@ -432,6 +447,9 @@ jotform_gsheet_columns['family'] = [
 #--------------------------------------------------------------------------
 
 jotform_gsheet_columns['epilog'] = [
-    'IP',
-    'Edit Link',
+    'Submission IP',
+    'Submission URL',
+    'Edit URL',
+    'Last update',
+    'Submissions ID',
 ]
