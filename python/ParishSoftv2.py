@@ -1076,7 +1076,7 @@ def get_member_public_email(member):
         return None
 
     key = 'emailAddress'
-    if key in member:
+    if key in member and member[key]:
         return member[key].lower()
     return None
 
