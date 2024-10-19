@@ -879,8 +879,6 @@ def jms_extra(cc_contacts, cc_lists, members, member_workgroups, families, log):
             writer.writerow(item)
 
     log.info(f"Wrote {filename}")
-    # JMS Exit early
-    exit(1)
 
 ####################################################################
 
@@ -958,8 +956,7 @@ def main():
     #jms_sanity(cc_contacts, log)
 
     # JMS Extra work
-    jms_extra(cc_contacts, cc_lists, members, member_workgroups, families, log)
-    exit(1)
+    #jms_extra(cc_contacts, cc_lists, members, member_workgroups, families, log)
 
     #----------------------------------------
 
