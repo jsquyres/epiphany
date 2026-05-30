@@ -1,0 +1,12 @@
+__pycache__
+.env
+venv
+*.md
+analysis-results
+google-drive-cache.json
+liturgy-plan-analysis.json
+failures.json
+client_id.json
+user-credentials.json
+log.txt*
+log-*.txt*
